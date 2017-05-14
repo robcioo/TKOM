@@ -15,13 +15,13 @@ public class Tokenizer {
 	// "[", "]" };
 	private static final String[] TOKENS = { "(", ")", ",", ".", "{", "}", ";", "!", "=", "|", "&", "==", "!=", "<",
 			">", "<=", ">=", "+", "++", "-", "--", "*", "/", "[", "]", "+=", "-=" };
-	private static final String[] HIGHEST_PRIORITY_OPERATOR = { "(", ")", "++", "--" };
-	private static final String[] HIGH_PRIORITY_OPERATOR = { "*", "/" };
-	private static final String[] MEDIUM_PRIORITY_OPERATOR = { "+", "-" };
+	public static final String[] HIGHEST_PRIORITY_OPERATOR = { "(", ")", "++", "--" };
+	public static final String[] HIGH_PRIORITY_OPERATOR = { "*", "/" };
+	public static final String[] MEDIUM_PRIORITY_OPERATOR = { "+", "-" };
 	private static final String[] LOW_PRIORITY_OPERATOR = { "+=", "-=", "=" };
-	private static final String[] LOGICAL_OPERATOR_H = { "!"};
+	private static final String[] LOGICAL_OPERATOR_H = { "!" };
 	private static final String[] LOGICAL_OPERATOR_M = { "&" };
-	private static final String[] LOGICAL_OPERATOR_L = { "|"};
+	private static final String[] LOGICAL_OPERATOR_L = { "|" };
 	private static final String[] COMPARISON_OPERATOR = { "==", "!=", "<", ">", "<=", ">=" };
 	private static final String[] OPERATOR = { ".", "{", "}", "[", "]", ";", "," };
 
@@ -37,6 +37,7 @@ public class Tokenizer {
 
 	private ArrayList<Token> tokens;
 	private int iterator;
+	private long line = 0;
 
 	public ArrayList<Token> tokenizeString(String source) {
 		tokens = new ArrayList<>();
@@ -54,6 +55,7 @@ public class Tokenizer {
 		try {
 			line = source.readLine();
 			while (line != null) {
+				++this.line;
 				tokens.addAll(tokenize(line));
 				line = source.readLine();
 			}
@@ -107,7 +109,7 @@ public class Tokenizer {
 	private TokenizerState praseString(char c, StringBuilder sb, ArrayList<Token> tokens) {
 		sb.append(c);
 		if (sb.length() > 1 && c == '"') {
-			tokens.add(new Token(sb.toString(), TokenType.STRING_CONST));
+			tokens.add(new Token(sb.toString(), TokenType.STRING_CONST,this.line));
 			sb.setLength(0);
 			return TokenizerState.START;
 		}
@@ -120,11 +122,11 @@ public class Tokenizer {
 			return TokenizerState.WORD;
 		} else {
 			if (isDataType(sb.toString())) {
-				tokens.add(new Token(sb.toString(), TokenType.DATA_TYPE));
+				tokens.add(new Token(sb.toString(), TokenType.DATA_TYPE,this.line));
 			} else if (isKeyWord(sb.toString())) {
-				tokens.add(new Token(sb.toString(), TokenType.KEY_WORD));
+				tokens.add(new Token(sb.toString(), TokenType.KEY_WORD,this.line));
 			} else {
-				tokens.add(new Token(sb.toString(), TokenType.VAR));
+				tokens.add(new Token(sb.toString(), TokenType.VAR,this.line));
 			}
 			sb.setLength(0);
 			return TokenizerState.START;
@@ -141,13 +143,13 @@ public class Tokenizer {
 				if (getTokenEquals(sb.toString()) == null)
 					throw new CancellationException("Błąd gramatyczny podczas wczytywania operatora. Kolumna: " + i);
 				else {
-					tokens.add(new Token(sb.toString(), getTokenType(sb.toString())));
+					tokens.add(new Token(sb.toString(), getTokenType(sb.toString()),this.line));
 					sb.setLength(0);
 					--i;
 					return i;
 				}
 			} else if (tok.size() == 1 && tok.get(0).equals(sb.toString())) {
-				tokens.add(new Token(sb.toString(), getTokenType(sb.toString())));
+				tokens.add(new Token(sb.toString(), getTokenType(sb.toString()),this.line));
 				sb.setLength(0);
 				return i;
 			}
@@ -183,7 +185,7 @@ public class Tokenizer {
 		else if (isLetter(c) || c == CHAR_)
 			throw new CancellationException("Niedozwolony znak. Kolumna: " + i);
 		else {
-			tokens.add(new Token(sb.toString(), TokenType.CONST));
+			tokens.add(new Token(sb.toString(), TokenType.CONST,this.line));
 			sb.setLength(0);
 
 			return TokenizerState.START;

@@ -1,6 +1,9 @@
 package tokenizer;
 
 public class Token {
+	private String value;
+	private TokenType type;
+	private long line;
 	public String getValue() {
 		return value;
 	}
@@ -21,17 +24,22 @@ public class Token {
 	}
 
 
-	private String value;
-	private TokenType type;
-	public Token(String value, TokenType type) {
+
+	public Token(String value, TokenType type, long line) {
 		super();
 		this.value = value;
 		this.type = type;
+		this.line=line;
 	}
 	
 	
 	@Override
 	public String toString() {
 		return "{value: "+value+" type: "+type.toString()+"}";
+	}
+
+
+	public long getLine() {
+		return line;
 	}
 }

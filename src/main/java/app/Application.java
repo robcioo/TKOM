@@ -9,14 +9,14 @@ import parser.Parser;
 import tokenizer.Tokenizer;
 
 public class Application {
-	public static void main(String[] c){
+	public static void main(String[] c) {
 		try {
-//			ArrayList<String> source=(ArrayList<String>) FileLoader.loadFile(Paths.get(c[0]));
-			Tokenizer tokenizer= new Tokenizer();
-			System.out.println(tokenizer.tokenize(new FileLoader(Paths.get(c[0]))).toString());
-			Parser parser=new Parser(tokenizer);
+			Tokenizer tokenizer = new Tokenizer();
+			FileLoader source = new FileLoader(Paths.get(c[0]));
+			tokenizer.tokenize(source);
+			Parser parser = new Parser(tokenizer);
 			parser.parse();
-			
+			System.out.println("Operacja przebiegła pomyślnie");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

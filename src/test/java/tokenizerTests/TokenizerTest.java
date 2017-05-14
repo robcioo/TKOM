@@ -45,13 +45,11 @@ public class TokenizerTest {
 		Tokenizer tokenizer = new Tokenizer();
 		tokenizer.tokenizeString("if(a){})");
 		Parser parser = new Parser(tokenizer);
-		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD));
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
 		parser.parseIf(node);
 		Node<Token> ifek = node.getChildren().get(0);
 		Node<Token> cond = ifek.getChildren().get(0);
-		Node<Token> or = cond.getChildren().get(0);
-		Node<Token> and = or.getChildren().get(0);
-		Node<Token> a = and.getChildren().get(0);
+		Node<Token> a = cond.getChildren().get(0);
 		
 		
 		Assert.assertEquals("a", a.getData().getValue());
@@ -63,7 +61,7 @@ public class TokenizerTest {
 		Tokenizer tokenizer = new Tokenizer();
 		tokenizer.tokenizeString("if(a & b | c){})");
 		Parser parser = new Parser(tokenizer);
-		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD));
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
 		parser.parseIf(node);
 		Node<Token> ifek = node.getChildren().get(0);
 		Node<Token> cond = ifek.getChildren().get(0);
@@ -71,7 +69,7 @@ public class TokenizerTest {
 		Node<Token> and = or.getChildren().get(0);
 		Node<Token> a = and.getChildren().get(0);
 		Node<Token> b = and.getChildren().get(1);
-		Node<Token> c = or.getChildren().get(1).getChildren().get(0);
+		Node<Token> c = or.getChildren().get(1);
 
 		
 		Assert.assertEquals("c", c.getData().getValue());
@@ -85,23 +83,18 @@ public class TokenizerTest {
 		Tokenizer tokenizer = new Tokenizer();
 		tokenizer.tokenizeString("if(a & (b & (c | d | e))){})");
 		Parser parser = new Parser(tokenizer);
-		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD));
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
 		parser.parseIf(node);
 		Node<Token> ifek = node.getChildren().get(0);
 		Node<Token> cond = ifek.getChildren().get(0);
-		Node<Token> or = cond.getChildren().get(0);
-		Node<Token> and = or.getChildren().get(0);
+		Node<Token> and = cond.getChildren().get(0);
 		Node<Token> a = and.getChildren().get(0);
-		Node<Token> orBr = and.getChildren().get(1);
-		Node<Token> andBr = orBr.getChildren().get(0);
+		Node<Token> andBr = and.getChildren().get(1);
 		Node<Token> b = andBr.getChildren().get(0);
 		Node<Token> orBrd = andBr.getChildren().get(1);
-		Node<Token> andBrd1 = orBrd.getChildren().get(0);
-		Node<Token> andBrd2 = orBrd.getChildren().get(1);
-		Node<Token> andBrd3 = orBrd.getChildren().get(2);
-		Node<Token> c = andBrd1.getChildren().get(0);		
-		Node<Token> d = andBrd2.getChildren().get(0);		
-		Node<Token> e = andBrd3.getChildren().get(0);		
+		Node<Token> c = orBrd.getChildren().get(0);		
+		Node<Token> d = orBrd.getChildren().get(1);		
+		Node<Token> e = orBrd.getChildren().get(2);		
 		
 		
 		Assert.assertEquals("c", c.getData().getValue());
@@ -113,20 +106,17 @@ public class TokenizerTest {
 	@Test
 	public void parseIfWithBracket() {
 		Tokenizer tokenizer = new Tokenizer();
-		tokenizer.tokenizeString("if(a & (b | c)){})");
+		tokenizer.tokenizeString("if(a & (b | c)){};");
 		Parser parser = new Parser(tokenizer);
-		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD));
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
 		parser.parseIf(node);
 		Node<Token> ifek = node.getChildren().get(0);
 		Node<Token> cond = ifek.getChildren().get(0);
-		Node<Token> or = cond.getChildren().get(0);
-		Node<Token> and = or.getChildren().get(0);
+		Node<Token> and = cond.getChildren().get(0);
 		Node<Token> a = and.getChildren().get(0);
 		Node<Token> orBr = and.getChildren().get(1);
-		Node<Token> andBr1 = orBr.getChildren().get(0);
-		Node<Token> andBr2 = orBr.getChildren().get(1);
-		Node<Token> b = andBr1.getChildren().get(0);
-		Node<Token> c = andBr2.getChildren().get(0);
+		Node<Token> b = orBr.getChildren().get(0);
+		Node<Token> c = orBr.getChildren().get(1);
 		
 		Assert.assertEquals("c", c.getData().getValue());
 		Assert.assertEquals("b", b.getData().getValue());
@@ -157,6 +147,82 @@ public class TokenizerTest {
 		thrown.expect(CancellationException.class);
 		Tokenizer tokenizer = new Tokenizer();
 		ArrayList<Token> tokens = tokenizer.tokenizeString("if(1==1){long w=\"siema}");
+	}
+	
+	@Test
+	public void instructionTest(){
+		Tokenizer tokenizer = new Tokenizer();
+		tokenizer.tokenizeString("a=a+b*c;");
+		Parser parser = new Parser(tokenizer);
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
+		parser.parseStandardInstruction(node);
+		
+		Node<Token> equals = node.getChildren().get(0);
+		Node<Token> ae = equals.getChildren().get(0);
+		Node<Token> add = equals.getChildren().get(1);
+		Node<Token> a = add.getChildren().get(0);
+		Node<Token> mul = add.getChildren().get(1);
+		Node<Token> b = mul.getChildren().get(0);
+		Node<Token> c = mul.getChildren().get(1);
+		Assert.assertEquals("c", c.getData().getValue());
+		Assert.assertEquals("b", b.getData().getValue());
+		Assert.assertEquals("a", a.getData().getValue());
+		Assert.assertEquals("a", ae.getData().getValue());
+		
+	}
+	@Test
+	public void declarationWithInitializationTest(){
+		Tokenizer tokenizer = new Tokenizer();
+		tokenizer.tokenizeString("string a=a+b*c;");
+		Parser parser = new Parser(tokenizer);
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
+		parser.parseCompoundInstruction(node);
+		
+		Node<Token> dataType = node.getChildren().get(0);
+		Node<Token> name = dataType.getChildren().get(0);
+		Node<Token> equals = node.getChildren().get(1);
+		Node<Token> ae = equals.getChildren().get(0);
+		Node<Token> add = equals.getChildren().get(1);
+		Node<Token> a = add.getChildren().get(0);
+		Node<Token> mul = add.getChildren().get(1);
+		Node<Token> b = mul.getChildren().get(0);
+		Node<Token> c = mul.getChildren().get(1);
+		Assert.assertEquals("c", c.getData().getValue());
+		Assert.assertEquals("b", b.getData().getValue());
+		Assert.assertEquals("a", a.getData().getValue());
+		Assert.assertEquals("a", ae.getData().getValue());
+		Assert.assertEquals("a", name.getData().getValue());
+		Assert.assertEquals("string", dataType.getData().getValue());
+		
+	}
+	@Test
+	public void instructionTestWithBracket(){
+		Tokenizer tokenizer = new Tokenizer();
+		tokenizer.tokenizeString("a=((((a+(b)))))*c;");
+		Parser parser = new Parser(tokenizer);
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
+		parser.parseStandardInstruction(node);
+		
+		Node<Token> equals = node.getChildren().get(0);
+		Node<Token> ae = equals.getChildren().get(0);
+		Node<Token> mul = equals.getChildren().get(1);
+		Node<Token> add = mul.getChildren().get(0);
+		Node<Token> c = mul.getChildren().get(1);
+		Node<Token> a = add.getChildren().get(0);
+		Node<Token> b = add.getChildren().get(1);
+		Assert.assertEquals("c", c.getData().getValue());
+		Assert.assertEquals("b", b.getData().getValue());
+		Assert.assertEquals("a", a.getData().getValue());
+		
+	}
+	@Test
+	public void functionTest(){
+		Tokenizer tokenizer = new Tokenizer();
+		tokenizer.tokenizeString("c.length(print());");
+		Parser parser = new Parser(tokenizer);
+		Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
+		parser.parseInstruction(node);
+		
 	}
 
 }
