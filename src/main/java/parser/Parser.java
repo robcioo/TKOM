@@ -1,34 +1,53 @@
 package parser;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CancellationException;
 
-import Tree.Node;
-import Tree.Tree;
+import files_loader.EndOfFileException;
+import parser.statements.ForStatement;
+import parser.statements.FuctionCallStatement;
+import parser.statements.FunctionStatement;
+import parser.statements.IfStatement;
+import parser.statements.ObjectFunctionCall;
+import parser.statements.ReturnStatement;
+import parser.statements.VarDeclaration;
+import parser.statements.WhileStatement;
+import parser.values.AdditiveExpression;
+import parser.values.AndOperator;
+import parser.values.ComparisonOperator;
+import parser.values.Const;
+import parser.values.Decrement;
+import parser.values.Division;
+import parser.values.Equal;
+import parser.values.Equals;
+import parser.values.GreaterEqualThan;
+import parser.values.GreaterThan;
+import parser.values.Increment;
+import parser.values.LowerEqualThan;
+import parser.values.LowerThan;
+import parser.values.Multiplication;
+import parser.values.MultiplicativeExpression;
+import parser.values.Not;
+import parser.values.NotEquals;
+import parser.values.OrOperator;
+import parser.values.StringConst;
+import parser.values.SubEq;
+import parser.values.Subtraction;
+import parser.values.Sum;
+import parser.values.SumEq;
+import parser.values.Value;
+import semantics.Scope;
+import tokenizer.Pair;
 import tokenizer.Token;
 import tokenizer.TokenType;
 import tokenizer.Tokenizer;
+import tokenizer.VarToken;
 
 public class Parser {
-	private static final String DOT = ".";
-	private static final String NOT = "!";
-	private static final String BODY = "BODY";
-	private static final String RETURN = "return";
-	private static final String FUNCTION_CALL = "functionCall";
-	private static final String COMMA = ",";
-	private static final String SEMICOLON = ";";
-	private static final String WHILE = "while";
-	private static final String ELSE = "else";
-	private static final String FOR = "for";
-	private static final String IF = "if";
-	private static final String L_BR = "{";
-	private static final String R_BR = "}";
-	private static final String R_BRACKET = ")";
-	private static final String L_BRACKET = "(";
-	public static final String FUNC = "func";
 	Tokenizer tokenizer;
-	private HashMap<String, Tree<Token>> functions;
+	private HashMap<String, FunctionStatement> functions;
 
 	public Parser(Tokenizer tokenizer) {
 		this.tokenizer = tokenizer;
@@ -36,348 +55,415 @@ public class Parser {
 	}
 
 	public void parse() {
-		Token token = tokenizer.getCurrent();
-		Tree<Token> tree = new Tree<Token>(token);
-		Token functionNameToken = tokenizer.getNext();
-		getFunctions().put(functionNameToken.getValue(), tree);
-		tokenizer.regress();
-
 		try {
-			while (tokenizer.getCurrent() != null) {
-				accept(TokenType.KEY_WORD, token);
-				if (token.getValue().equals(FUNC)) {
-					parseFunc((Node) tree);
-				}
+			while (tokenizer.getCurrentToken() != null) {
+				accept(TokenType.FUNC, tokenizer.getCurrentTokenAndAdvance());
+				Token functionNameToken = tokenizer.getCurrentTokenAndAdvance();
+				accept(TokenType.VAR, functionNameToken);
+				// Tree<TreeNode> tree = new Tree<TreeNode>(new
+				// FunctionStatement());
+				Pair<FunctionStatement, Boolean> result = parseFunc();
+				functions.put(((VarToken) functionNameToken).getValue(), result.getLeft());
+				if(result.getRight().equals(false))
+					break;
 			}
-		} catch (NullPointerException e) {
+		} catch (CancellationException e) {
 			e.printStackTrace();
-			System.out.println("Niespodziewany koniec kodu.");
-		} catch (Exception e) {
 			System.out.println(e.getMessage());
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
-	private void parseFunc(Node<Token> node) {
+	private Pair<FunctionStatement, Boolean>  parseFunc() throws IOException {
+		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		FunctionStatement functionStatement = new FunctionStatement();
+		if (!tokenizer.getCurrentToken().getType().equals(TokenType.R_BRACKET)) {
+			functionStatement.addArguments(parseFuncHeader());
+		}
+		accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		accept(TokenType.L_BR, tokenizer.getCurrentTokenAndAdvance());
+		if (tokenizer.getCurrentToken().getType() != TokenType.R_BR) {
+			functionStatement.addInstructions(parseInstructions());
+		}
+		accept(TokenType.R_BR, tokenizer.getCurrentToken());
+		try{
 		tokenizer.advance();
-		Token token = tokenizer.getCurrentWithAdvance();
-		accept(TokenType.VAR, token);
-		Node<Token> newNode = node.addLChild(token);
-		accept(L_BRACKET, tokenizer.getCurrentWithAdvance());
-		if (!tokenizer.getCurrent().getValue().equals(L_BRACKET)) {
-			parseFuncHeader(newNode);
+		}catch (EndOfFileException e) {
+			return new Pair<FunctionStatement, Boolean>(functionStatement, new Boolean(false));
 		}
-		accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		accept(L_BR, tokenizer.getCurrentWithAdvance());
-		if (tokenizer.getCurrent().getValue() != R_BR) {
-			parseInstructions(node);
-		}
-		accept(R_BR, tokenizer.getCurrentWithAdvance());
+		return new Pair<FunctionStatement, Boolean>(functionStatement, new Boolean(true));
 	}
 
-	private void parseInstructions(Node<Token> node) {
-		Node<Token> newNode = node.addLChild(new Token(BODY, TokenType.BODY, 0));
-		while (!tokenizer.getCurrent().getValue().equals(R_BR)) {
-			parseInstruction(newNode);
-			accept(SEMICOLON, tokenizer.getCurrentWithAdvance());
+	private ArrayList<Statement> parseInstructions() throws IOException {
+		ArrayList<Statement> instructions = new ArrayList<>();
+		while (!TokenType.R_BR.equals(tokenizer.getCurrentToken().getType())) {
+			instructions.addAll(parseInstruction());
+			accept(TokenType.SEMICOLON, tokenizer.getCurrentTokenAndAdvance());
 		}
+		return instructions;
 
 	}
 
-	public void parseInstruction(Node<Token> node) {
-		Token token = tokenizer.getCurrent();
-		switch (token.getType()) {
+	public ArrayList<Statement> parseInstruction() throws IOException {
+		Token token = tokenizer.getCurrentToken();
+		switch (token.getParentType()) {
 		case VAR:
-			parseStandardInstruction(node);
-			break;
+			ArrayList<Statement> retArr = new ArrayList<>();
+			retArr.add(parseStandardInstruction());
+			return retArr;
 		case DATA_TYPE:
-			parseCompoundInstruction(node);
-			break;
+			return parseCompoundInstruction();
 		case KEY_WORD:
-			if (IF.equals(token.getValue())) {
-				parseIf(node);
-			} else if (FOR.equals(token.getValue())) {
-				parseFor(node);
-			} else if (WHILE.equals(token.getValue()))
-				parseWhile(node);
-			else if (RETURN.equals(token.getValue()))
-				parseReturn(node);
+			if (TokenType.IF.equals(token.getType())) {
+				ArrayList<Statement> arr = new ArrayList<>();
+				arr.add(parseIf());
+				return arr;
+			} else if (TokenType.FOR.equals(token.getType())) {
+				ArrayList<Statement> arr = new ArrayList<>();
+				arr.add(parseFor());
+				return arr;
+			} else if (TokenType.WHILE.equals(token.getType())) {
+				ArrayList<Statement> arr = new ArrayList<>();
+				arr.add(parseWhile());
+				return arr;
+			} else if (TokenType.RETURN.equals(token.getType())) {
+				ArrayList<Statement> arr = new ArrayList<>();
+				arr.add(parseReturn());
+				return arr;
+			}
 			break;
-
-		default:
-			throw new CancellationException("Niespodziewany token: " + token.getValue()
-					+ " podczas parsowania instrukcji. Linia: " + token.getLine());
 		}
+		throw new CancellationException("Niespodziewany token: " + token.getType()
+				+ " podczas parsowania instrukcji. Linia: " + tokenizer.getLine());
 	}
 
-	public void parseCompoundInstruction(Node<Token> node) {
-		parseVarDeclaration(node);
-		tokenizer.regress();
-		parseStandardInstruction(node);
-	}
-
-	private void parseReturn(Node<Token> node) {
-		accept(RETURN, tokenizer.getCurrent());
-		node.addLChild(tokenizer.getCurrentWithAdvance());
-		parseAddExpression();
-	}
-
-	private void parseWhile(Node<Token> node) {
-		Token token = tokenizer.getCurrentWithAdvance();
-		accept(WHILE, token);
-		Node<Token> newNode = node.addLChild(token);
-		accept(L_BRACKET, tokenizer.getCurrentWithAdvance());
-		parseCompoundCondition(node);
-		accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		accept(L_BR, tokenizer.getCurrentWithAdvance());
-		parseInstructions(newNode);
-		accept(R_BR, tokenizer.getCurrentWithAdvance());
-
-	}
-
-	private void parseFor(Node<Token> node) {
-		Token token = tokenizer.getCurrentWithAdvance();
-		accept(FOR, token);
-		Node<Token> newNode = node.addLChild(token);
-		accept(L_BRACKET, tokenizer.getCurrentWithAdvance());
-		parseCompoundInstruction(newNode);
-		accept(SEMICOLON, tokenizer.getCurrentWithAdvance());
-		parseCompoundCondition(newNode);
-		accept(SEMICOLON, tokenizer.getCurrentWithAdvance());
-		newNode.addLChild(parseAddExpression());
-		accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		accept(L_BR, tokenizer.getCurrentWithAdvance());
-		parseInstructions(newNode);
-		accept(R_BR, tokenizer.getCurrentWithAdvance());
-
-	}
-
-	public void parseStandardInstruction(Node<Token> node) {
-		if (DOT.equals(tokenizer.getNext().getValue())) {
+	public ArrayList<Statement> parseCompoundInstruction() throws IOException {
+		ArrayList<Statement> instructions = new ArrayList<>();
+		instructions.add(parseVarDeclaration());
+		if (!tokenizer.getCurrentToken().getType().equals(TokenType.SEMICOLON)) {
 			tokenizer.regress();
-			Node<Token> newNode = new Node<Token>(tokenizer.getCurrentWithAdvance());
-			node.addLChild(parseFunctionCall());
-		} else if (L_BRACKET.equals(tokenizer.getCurrent().getValue())) {
+			instructions.add(parseStandardInstruction());
+		}
+		return instructions;
+	}
+
+	private Statement parseReturn() throws IOException {
+		accept(TokenType.RETURN, tokenizer.getCurrentToken());
+		ReturnStatement returnStatement = new ReturnStatement();
+		returnStatement.setExpresion(parseAddExpression());
+		accept(TokenType.SEMICOLON, tokenizer.getCurrentTokenAndAdvance());
+		return returnStatement;
+	}
+
+	private Statement parseWhile() throws IOException {
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		accept(TokenType.WHILE, token);
+		WhileStatement whileStatement = new WhileStatement();
+		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		whileStatement.setCondition(parseCondition());
+		accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		accept(TokenType.L_BR, tokenizer.getCurrentTokenAndAdvance());
+		whileStatement.addInstructions(parseInstructions());
+		accept(TokenType.R_BR, tokenizer.getCurrentTokenAndAdvance());
+		return whileStatement;
+	}
+
+	private Statement parseFor() throws IOException {
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		accept(TokenType.FOR, token);
+		ForStatement forStatement = new ForStatement();
+		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		forStatement.addInit(parseCompoundInstruction());
+		accept(TokenType.SEMICOLON, tokenizer.getCurrentTokenAndAdvance());
+		forStatement.setCondition(parseCondition());
+		accept(TokenType.SEMICOLON, tokenizer.getCurrentTokenAndAdvance());
+		forStatement.addPostInstruction(parseAddExpression());
+		accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		accept(TokenType.L_BR, tokenizer.getCurrentTokenAndAdvance());
+		forStatement.addInstructions(parseInstructions());
+		accept(TokenType.R_BR, tokenizer.getCurrentTokenAndAdvance());
+		return forStatement;
+	}
+
+	public Statement parseStandardInstruction() throws IOException {
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		if (TokenType.DOT.equals(tokenizer.getCurrentToken().getType())) {
+			ObjectFunctionCall functionCall = new ObjectFunctionCall(((VarToken) token).getValue(),functions);
+			tokenizer.advance();
+			functionCall.addFunctionCall(parseFunctionCall());
+			return functionCall;
+		} else if (TokenType.L_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
 			tokenizer.regress();
-			tokenizer.regress();
-			node.addLChild(parseFunctionCall());
+			return parseFunctionCall();
 		} else {
-			tokenizer.regress();
-			Token token = tokenizer.getCurrentWithAdvance();
-			accept(TokenType.VAR, token);
-			if (TokenType.LOW_PRIORITY_OPERATOR.equals(tokenizer.getCurrent().getType())) {
-				accept(TokenType.LOW_PRIORITY_OPERATOR, tokenizer.getCurrent());
-				Node<Token> operator = new Node<>(tokenizer.getCurrentWithAdvance());
-				operator.addLChild(token);
-				operator.addLChild(parseAddExpression());
-				node.addLChild(operator);
-			}
+//			accept(TokenType.VAR, tokenizer.getCurrentTokenAndAdvance().getParentType());
+			if (TokenType.LOW_PRIORITY_OPERATOR.equals(tokenizer.getCurrentToken().getParentType())) {
+				switch (tokenizer.getCurrentTokenAndAdvance().getType()) {
+				case EQUAL:
+					return new Equal(((VarToken) token).getValue(), parseAddExpression());
+				case SUB_EQ:
+					return new SubEq(((VarToken) token).getValue(), parseAddExpression());
+				case SUM_EQ:
+					return new SumEq(((VarToken) token).getValue(), parseAddExpression());
+				}
+				throw new CancellationException("Nieobslugiwany operator przypisania. Linia: "+tokenizer.getLine());
+			} else
+				throw new CancellationException("Nieobslugiwany operator przypisania. Linia: "+tokenizer.getLine());
 		}
 
 	}
 
-	private Node<Token> parseAddExpression() {
-		Node<Token> newNode = parseMulExpression();
-		if (!tokenizer.getCurrent().getType().equals(TokenType.MEDIUM_PRIORITY_OPERATOR))
-			return newNode;
-		Node<Token> addNode = new Node<Token>(tokenizer.getCurrent());
-		addNode.addLChild(newNode);
-		while (Arrays.asList(Tokenizer.MEDIUM_PRIORITY_OPERATOR).contains(tokenizer.getCurrent().getValue())) {
-			if (!tokenizer.getCurrent().getValue().equals(addNode.getData().getValue())) {
-				newNode = new Node<Token>(tokenizer.getCurrent());
-				newNode.addLChild(addNode);
-				addNode = newNode;
-			}
-			tokenizer.advance();
-			addNode.addLChild(parseMulExpression());
+	private Expression parseAddExpression() throws IOException {
+		Expression arg = parseMulExpression();
+		Token token = tokenizer.getCurrentToken();
+		if (!TokenType.MEDIUM_PRIORITY_OPERATOR.equals(token.getParentType()))
+			return arg;
+		AdditiveExpression operation;
+		if (TokenType.SUM.equals(token.getType())) {
+			operation = new Sum();
+		} else {
+			operation = new Subtraction();
 		}
-		return addNode;
+		operation.addArgument(arg);
+		operation.addArgument(parseAddExpression());
+		return operation;
 	}
 
-	private Node<Token> parseMulExpression() {
-		Node<Token> newNode = parseHighExpression();
-		if (!tokenizer.getCurrent().getType().equals(TokenType.HIGH_PRIORITY_OPERATOR))
-			return newNode;
-		Node<Token> andNode = new Node<Token>(tokenizer.getCurrent());
-		andNode.addLChild(newNode);
-		while (Arrays.asList(Tokenizer.HIGH_PRIORITY_OPERATOR).contains(tokenizer.getCurrent().getValue())) {
-			if (!tokenizer.getCurrent().getValue().equals(andNode.getData().getValue())) {
-				newNode = new Node<Token>(tokenizer.getCurrent());
-				newNode.addLChild(andNode);
-				andNode = newNode;
-			}
-			tokenizer.advance();
-			andNode.addLChild(parseHighExpression());
+	private Expression parseMulExpression() throws IOException {
+		Expression arg = parseHighExpression();
+		if (!TokenType.HIGH_PRIORITY_OPERATOR.equals(tokenizer.getCurrentToken().getParentType()))
+			return arg;
+		MultiplicativeExpression operation;
+		if (TokenType.MUL.equals(tokenizer.getCurrentToken().getType())) {
+			operation = new Multiplication();
+		} else {
+			operation = new Division();
 		}
-		return andNode;
+		operation.addArgument(arg);
+		operation.addArgument(parseMulExpression());
+		return operation;
+		// TokenType op = tokenizer.getCurrentToken().getType();
+		// while (op.equals(tokenizer.getCurrentToken().getType())) {
+		// tokenizer.advance();
+		// operation.addArgument(parseHighExpression());
+		// }
+		// if
+		// (TokenType.HIGH_PRIORITY_OPERATOR.equals(tokenizer.getCurrentToken().getParentType()))
+		// parseMulExpression(operation);
+		// return andNode;
 	}
 
-	private Node<Token> parseHighExpression() {
-		Token token = tokenizer.getCurrentWithAdvance();
-		Node<Token> newNode = null;
-		if (token.getValue().equals("(")) {
-			accept(L_BRACKET, token);
-			newNode = parseAddExpression();
-			accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		} else if (token.getValue().equals("--") || token.getValue().equals("++")) {
-			newNode = new Node<Token>(token);
-			newNode.addLChild(parseHighExpression());
+	private Expression parseHighExpression() throws IOException {
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		if (token.getType().equals(TokenType.L_BRACKET)) {
+			Expression expression = parseAddExpression();
+			accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+			return expression;
+		} else if (TokenType.DEC.equals(token.getType()) || TokenType.INC.equals(token.getType())) {
+			accept(TokenType.VAR, tokenizer.getCurrentToken());
+			Expression expression;
+			if (TokenType.DEC.equals(token.getType())) {
+				expression = new Decrement(((VarToken) tokenizer.getCurrentTokenAndAdvance()).getValue());
+			} else {
+				expression = new Increment(((VarToken) tokenizer.getCurrentTokenAndAdvance()).getValue());
+			}
+			return expression;
 		} else if (TokenType.VAR.equals(token.getType())) {
 			tokenizer.regress();
 			return parseVarExpression();
 		} else if (TokenType.CONST.equals(token.getType())) {
-			return new Node<Token>(token);
+			return new Const(((VarToken) token).getValue());
 		} else if (TokenType.STRING_CONST.equals(token.getType())) {
-			return new Node<Token>(token);
-		}
-		return newNode;
-	}
-
-	private Node<Token> parseVarExpression() {
-		accept(TokenType.VAR, tokenizer.getCurrent());
-		Node<Token> newNode = new Node<Token>(tokenizer.getCurrentWithAdvance());
-		if (DOT.equals(tokenizer.getCurrent().getValue())) {
-			newNode.addLChild(parseFunctionCall());
-		}
-		return newNode;
-	}
-
-	private Node<Token> parseFunctionCall() {
-		tokenizer.advance();
-		accept(TokenType.VAR, tokenizer.getCurrent());
-		Node<Token> newNode = new Node<Token>(
-				new Token(tokenizer.getCurrentWithAdvance().getValue(), TokenType.FUNCTION_CALL, 0));
-		accept(L_BRACKET, tokenizer.getCurrentWithAdvance());
-		if (!R_BRACKET.equals(tokenizer.getCurrent().getValue())) {
-			parseStandardInstruction(newNode);
-		}
-		while (!R_BRACKET.equals(tokenizer.getCurrent().getValue())) {
-			accept(COMMA, tokenizer.getCurrentWithAdvance());
-			newNode.addLChild(parseAddExpression());
-		}
-		accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		return newNode;
-	}
-
-	public void parseIf(Node<Token> node) {
-		Token token = tokenizer.getCurrentWithAdvance();
-		accept(IF, token);
-		Node<Token> newNode = node.addLChild(token);
-		accept(L_BRACKET, tokenizer.getCurrentWithAdvance());
-		parseCompoundCondition(newNode);
-		accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		accept(L_BR, tokenizer.getCurrentWithAdvance());
-		parseInstructions(newNode);
-		accept(R_BR, tokenizer.getCurrentWithAdvance());
-		if (ELSE.equals(tokenizer.getCurrent().getValue())) {
-			accept(ELSE, tokenizer.getCurrentWithAdvance());
-			accept(L_BR, tokenizer.getCurrentWithAdvance());
-			parseInstructions(newNode);
-			accept(R_BR, tokenizer.getCurrentWithAdvance());
-		}
-	}
-
-	private void parseCompoundCondition(Node<Token> node) {
-		node.addLChild(new Token("condition", TokenType.CONDITION, 0)).addLChild(parseCompareCondition());
-	}
-
-	private Node<Token> parseCompareCondition() {
-		Node<Token> newNode = parseOrCondition();
-		if (!tokenizer.getCurrent().getType().equals(TokenType.COMPARISON_OPERATOR))
-			return newNode;
-		Node<Token> orNode = new Node<Token>(tokenizer.getCurrent());
-		orNode.addLChild(newNode);
-		while (tokenizer.getCurrentWithAdvance().getType().equals(TokenType.COMPARISON_OPERATOR)) {
-			orNode.addLChild(parseOrCondition());
-		}
-		tokenizer.regress();
-		return orNode;
-	}
-
-	private Node<Token> parseOrCondition() {
-		Node<Token> newNode = parseAndCondition();
-		if (!tokenizer.getCurrent().getType().equals(TokenType.OPERATOR_OR))
-			return newNode;
-		Node<Token> orNode = new Node<Token>(new Token("|", TokenType.OPERATOR_OR, 0));
-		orNode.addLChild(newNode);
-		while (tokenizer.getCurrentWithAdvance().getValue().equals("|")) {
-			orNode.addLChild(parseAndCondition());
-		}
-		tokenizer.regress();
-		return orNode;
-	}
-
-	private Node<Token> parseAndCondition() {
-		Node<Token> newNode = parseNotCondition();
-		if (!tokenizer.getCurrent().getType().equals(TokenType.OPERATOR_AND))
-			return newNode;
-		Node<Token> andNode = new Node<Token>(new Token("&", TokenType.OPERATOR_AND, 0));
-		andNode.addLChild(newNode);
-		while (tokenizer.getCurrentWithAdvance().getValue().equals("&")) {
-			andNode.addLChild(parseNotCondition());
-		}
-		tokenizer.regress();
-		return andNode;
-	}
-
-	private Node<Token> parseNotCondition() {
-		Token token = tokenizer.getCurrentWithAdvance();
-		Node<Token> newNode = null;
-		if (token.getValue().equals(NOT)) {
-			accept(NOT, token);
-			newNode = new Node<Token>(token);
-			newNode.addLChild(parseNotCondition());
-		} else if (token.getValue().equals(L_BRACKET)) {
-			accept(L_BRACKET, token);
-			newNode = parseOrCondition();
-			accept(R_BRACKET, tokenizer.getCurrentWithAdvance());
-		} else if (TokenType.VAR.equals(token.getType())) {
-			tokenizer.regress();
-			return parseVarExpression();
-		} else if (TokenType.CONST.equals(token.getType())) {
-			return new Node<Token>(token);
-		} else if (TokenType.STRING_CONST.equals(token.getType())) {
-			return new Node<Token>(token);
+			return new StringConst(((VarToken) token).getValue());
 		} else
-			throw new CancellationException(
-					"Niespodziewany token: " + token.getValue() + ". Linia: " + token.getLine());
-		return newNode;
+			throw new CancellationException("Nie obsugiwany token w wyraeniu" + token.getType());
 	}
 
-	private void parseFuncHeader(Node<Token> node) {
-		Token token = tokenizer.getCurrent();
-		if (!token.getValue().equals(R_BRACKET))
-			parseVarDeclaration(node);
-		while (!tokenizer.getCurrent().getValue().equals(R_BRACKET)) {
-			accept(COMMA, tokenizer.getCurrentWithAdvance());
-			parseVarDeclaration(node);
+	private Expression parseVarExpression() throws IOException {
+		accept(TokenType.VAR, tokenizer.getCurrentToken());
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		if (TokenType.DOT.equals(tokenizer.getCurrentToken().getType())) {
+			ObjectFunctionCall functionCall = new ObjectFunctionCall(((VarToken) token).getValue(),functions);
+			tokenizer.advance();
+			functionCall.addFunctionCall(parseFunctionCall());
+			return functionCall;
 		}
+		return new Value(((VarToken) token).getValue());
 	}
 
-	private void parseVarDeclaration(Node<Token> node) {
-		Token token = tokenizer.getCurrentWithAdvance();
-		accept(TokenType.DATA_TYPE, token);
-		Node<Token> newNode = node.addLChild(token);
-		accept(TokenType.VAR, tokenizer.getCurrent());
-		newNode = newNode.addLChild(tokenizer.getCurrentWithAdvance());
+	private FuctionCallStatement parseFunctionCall() throws IOException {
+		accept(TokenType.VAR, tokenizer.getCurrentToken());
+		// Node<Token> newNode = new Node<Token>(
+		// new Token(tokenizer.getCurrentTokenAndAdvance().getValue(),
+		// TokenType.FUNCTION_CALL, 0));
+		FuctionCallStatement oper = new FuctionCallStatement(
+				((VarToken) tokenizer.getCurrentTokenAndAdvance()).getValue(),functions);
+		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		if (!TokenType.R_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
+			oper.addArgument(parseStandardInstruction());
+		}
+		while (!TokenType.R_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
+			accept(TokenType.COMMA, tokenizer.getCurrentTokenAndAdvance());
+			oper.addArgument(parseStandardInstruction());
+		}
+		accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		return oper;
 	}
 
-	private void accept(String expectedToken, Token token) {
-		if (!expectedToken.equals(token.getValue()))
-			throw new CancellationException("Spodziewano się: " + expectedToken + ", a jest: " + token.getValue()
-					+ ". Linia: " + token.getLine());
+	public Statement parseIf() throws IOException {
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		accept(TokenType.IF, token);
+		IfStatement ifStatement = new IfStatement();
+		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		ifStatement.setCondition(parseCondition());
+		accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+		accept(TokenType.L_BR, tokenizer.getCurrentTokenAndAdvance());
+		ifStatement.addIfInstructions(parseInstructions());
+		accept(TokenType.R_BR, tokenizer.getCurrentTokenAndAdvance());
+		if (TokenType.ELSE.equals(tokenizer.getCurrentToken().getType())) {
+			accept(TokenType.ELSE, tokenizer.getCurrentTokenAndAdvance());
+			accept(TokenType.L_BR, tokenizer.getCurrentTokenAndAdvance());
+			ifStatement.addElseInstructions(parseInstructions());
+			accept(TokenType.R_BR, tokenizer.getCurrentTokenAndAdvance());
+		}
+		return ifStatement;
 	}
+
+	private Expression parseCondition() throws IOException {
+		return parseCompareCondition();
+	}
+
+	private Expression parseCompareCondition() throws IOException {
+		Expression arg = parseOrCondition();
+		if (!tokenizer.getCurrentToken().getParentType().equals(TokenType.COMPARISON_OPERATOR))
+			return arg;
+		Token tok = tokenizer.getCurrentTokenAndAdvance();
+		ComparisonOperator operator;
+		if (TokenType.EQUALS.equals(tok.getType())) {
+			operator = new Equals();
+		} else if (TokenType.NEQUALS.equals(tok.getType())) {
+			operator = new NotEquals();
+		} else if (TokenType.LT.equals(tok.getType())) {
+			operator = new LowerThan();
+		} else if (TokenType.LET.equals(tok.getType())) {
+			operator = new LowerEqualThan();
+		} else if (TokenType.GT.equals(tok.getType())) {
+			operator = new GreaterThan();
+		} else {
+			operator = new GreaterEqualThan();
+		}
+		operator.addArgument(arg);
+		operator.addArgument(parseOrCondition());
+		return operator;
+
+		// Node<Token> newNode = parseOrCondition();
+		// if
+		// (!tokenizer.getCurrentToken().getType().equals(TokenType.COMPARISON_OPERATOR))
+		// return newNode;
+		// Node<Token> orNode = new Node<Token>(tokenizer.getCurrentToken());
+		// orNode.addLChild(newNode);
+		// while
+		// (tokenizer.getCurrentTokenAndAdvance().getType().equals(TokenType.COMPARISON_OPERATOR))
+		// {
+		// orNode.addLChild(parseOrCondition());
+		// }
+		// tokenizer.regress();
+		// return orNode;
+	}
+
+	private Expression parseOrCondition() throws IOException {
+		Expression arg = parseAndCondition();
+		if (!tokenizer.getCurrentToken().getType().equals(TokenType.OR))
+			return arg;
+		tokenizer.advance();
+		OrOperator or = new OrOperator();
+		or.addArgument(arg);
+		or.addArgument(parseOrCondition());
+		return or;
+	}
+
+	private Expression parseAndCondition() throws IOException {
+		Expression arg = parseNotCondition();
+		if (!tokenizer.getCurrentToken().getType().equals(TokenType.AND))
+			return arg;
+		tokenizer.advance();
+		AndOperator and = new AndOperator();
+		and.addArgument(arg);
+		and.addArgument(parseAndCondition());
+		return and;
+	}
+
+	private Expression parseNotCondition() throws IOException {
+		Token token = tokenizer.getCurrentTokenAndAdvance();
+		if (TokenType.NOT.equals(token.getType())) {
+			return new Not(parseNotCondition());
+		} else if (token.getType().equals(TokenType.L_BRACKET)) {
+			Expression ex = parseCompareCondition();
+			accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
+			return ex;
+		} else if (TokenType.VAR.equals(token.getType())) {
+			tokenizer.regress();
+			return parseVarExpression();
+		} else if (TokenType.CONST.equals(token.getType())) {
+			return new Const(((VarToken) token).getValue());
+		} else if (TokenType.STRING_CONST.equals(token.getType())) {
+			return new StringConst(((VarToken) token).getValue());
+		} else
+			throw new CancellationException("Niespodziewany token: " + token.getType()
+					+ " podczas parsowania instrukcji. Linia: " + tokenizer.getLine());
+	}
+
+	private ArrayList<VarDeclaration> parseFuncHeader() throws IOException {
+		ArrayList<VarDeclaration> header = new ArrayList<>();
+		Token token = tokenizer.getCurrentToken();
+		if (!TokenType.R_BRACKET.equals(token.getType()))
+			header.add(parseVarDeclaration());
+		while (!TokenType.R_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
+			accept(TokenType.COMMA, tokenizer.getCurrentTokenAndAdvance());
+			header.add(parseVarDeclaration());
+		}
+		return header;
+	}
+
+	private VarDeclaration parseVarDeclaration() throws IOException {
+		Token dataType = tokenizer.getCurrentTokenAndAdvance();
+		accept(TokenType.DATA_TYPE, dataType.getParentType());
+		accept(TokenType.VAR, tokenizer.getCurrentToken());
+		Token name = tokenizer.getCurrentTokenAndAdvance();
+		return new VarDeclaration(dataType.getType(), ((VarToken) name).getValue());
+	}
+
+	// private void accept(String expectedToken, Token token) {
+	// if (!expectedToken.equals(token.getValue()))
+	// throw new CancellationException("Spodziewano się: " + expectedToken + ",
+	// a jest: " + token.getValue()
+	// + ". Linia: " + token.getLine());
+	// }
 
 	private void accept(TokenType expectedToken, Token token) {
 		if (!expectedToken.equals(token.getType()))
 			throw new CancellationException("Spodziewano się: " + expectedToken + ", a jest: " + token.getType()
-					+ ". Linia: " + token.getLine());
+					+ ". Linia: " + tokenizer.getLine());
 	}
 
-	public HashMap<String, Tree<Token>> getFunctions() {
+	private void accept(TokenType expectedToken, TokenType type) {
+		if (!expectedToken.equals(type))
+			throw new CancellationException(
+					"Spodziewano się: " + expectedToken + ", a jest: " + type + ". Linia: " + tokenizer.getLine());
+	}
+
+	public HashMap<String, FunctionStatement> getFunctions() {
 		return functions;
 	}
 
-	public void setFunctions(HashMap<String, Tree<Token>> functions) {
+	public void setFunctions(HashMap<String, FunctionStatement> functions) {
 		this.functions = functions;
+	}
+
+	public Object execute(String func,ArrayList<Object> args) {
+		FunctionStatement functionStatement=functions.get(func);
+		return functionStatement.execute(new Scope(),args);
+		
 	}
 }

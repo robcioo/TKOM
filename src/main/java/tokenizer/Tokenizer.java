@@ -3,200 +3,180 @@ package tokenizer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.CancellationException;
 
 import javax.swing.event.ListSelectionEvent;
 
-import files_loader.FileLoader;
+import files_loader.SourceLoader;
 
 public class Tokenizer {
 
-	// private static final String[] TOKENS = { ",", ".", "{", "}", ";", "=",
-	// "[", "]" };
-	private static final String[] TOKENS = { "(", ")", ",", ".", "{", "}", ";", "!", "=", "|", "&", "==", "!=", "<",
-			">", "<=", ">=", "+", "++", "-", "--", "*", "/", "[", "]", "+=", "-=" };
-	public static final String[] HIGHEST_PRIORITY_OPERATOR = { "(", ")", "++", "--" };
-	public static final String[] HIGH_PRIORITY_OPERATOR = { "*", "/" };
-	public static final String[] MEDIUM_PRIORITY_OPERATOR = { "+", "-" };
-	private static final String[] LOW_PRIORITY_OPERATOR = { "+=", "-=", "=" };
-	private static final String[] LOGICAL_OPERATOR_H = { "!" };
-	private static final String[] LOGICAL_OPERATOR_M = { "&" };
-	private static final String[] LOGICAL_OPERATOR_L = { "|" };
-	private static final String[] COMPARISON_OPERATOR = { "==", "!=", "<", ">", "<=", ">=" };
-	private static final String[] OPERATOR = { ".", "{", "}", "[", "]", ";", "," };
-
-	private static final String[] DATA_TYPES = { "bool", "long", "double", "string", "list" };
-	private static final String[] KEY_WORDS = { "func", "if", "for", "while", "else", "return" };
-	private static final char CHAR_a = 'a';
-	private static final char CHAR_z = 'z';
-	private static final char CHAR_A = 'A';
-	private static final char CHAR_Z = 'Z';
-	private static final char DIGIT_0 = '0';
-	private static final char DIGIT_9 = '9';
-	private static final char CHAR_ = '_';
-
+	private static final int SIZE = 2;
+	private SourceLoader fileLoader;
 	private ArrayList<Token> tokens;
-	private int iterator;
-	private long line = 0;
+	private int bufferIter;
 
-	public ArrayList<Token> tokenizeString(String source) {
-		tokens = new ArrayList<>();
-		iterator = 0;
-		String line;
-		line = source;
-		tokens.addAll(tokenize(line));
-		return tokens;
+	public Tokenizer(SourceLoader fileLoader) {
+		this.fileLoader = fileLoader;
+		tokens=new ArrayList<>();
 	}
 
-	public ArrayList<Token> tokenize(FileLoader source) {
-		tokens = new ArrayList<>();
-		iterator = 0;
-		String line;
+	public Token getCurrentToken() {
+		if (tokens.size() == 0)
+			advance();
+		if (tokens.size() == 1)
+			return tokens.get(0);
+		return tokens.get(bufferIter);
+	}
+
+	public Token getCurrentTokenAndAdvance() throws IOException {
+		Token c = getCurrentToken();
+		advance();
+		return c;
+	}
+
+	public void advance() {
+		if (tokens.size()!=0 && bufferIter+1 < tokens.size()) {
+			++bufferIter;
+			return;
+		}
+		addToken(tokenizeOneToken());
+	}
+
+	public void regress() {
+		--bufferIter;
+	}
+
+	public Token tokenizeOneToken() {
 		try {
-			line = source.readLine();
-			while (line != null) {
-				++this.line;
-				tokens.addAll(tokenize(line));
-				line = source.readLine();
+			if (Character.isWhitespace(fileLoader.getCurrentChar()))
+				while (Character.isWhitespace(fileLoader.getCurrentChar()))
+					fileLoader.advance();
+			if(fileLoader.getCurrentChar()==' '){
+				
+			}
+			TokenizerState state = getNextState(fileLoader.getCurrentChar());
+			switch (state) {
+			case NUMBER:
+				return tokenizeNumber();
+			case SPECIAL:
+				return parseSpecial();
+			case WORD:
+				return parseWord();
+			case STRING:
+				return praseString();
+			default:
+				return null;
 			}
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			throw new CancellationException("Błąd podczas wczytywania pliku.");
 		}
-		return tokens;
 	}
 
-	private ArrayList<Token> tokenize(String line) {
-		ArrayList<Token> tokens = new ArrayList<>();
-		String newLine = line + "";
-		TokenizerState state = TokenizerState.START;
+	private Token praseString() throws IOException {
 		StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < newLine.length(); ++i) {
-			switch (state) {
-			case START:
-				state = getNextState(newLine.charAt(i), i);
-				if (state != TokenizerState.START)
-					--i;
-				break;
-			case NUMBER:
-				state = parseNumber(newLine.charAt(i), sb, i, tokens);
-				if (state == TokenizerState.START)
-					--i;
-				break;
-			case SPECIAL:
-				i = parseSpecial(i, newLine, sb, tokens);
-				state = TokenizerState.START;
-				break;
-			case WORD:
-				state = parseWord(newLine.charAt(i), sb, tokens);
-				if (state == TokenizerState.START)
-					--i;
-				break;
-			case STRING:
-				state = praseString(newLine.charAt(i), sb, tokens);
-				break;
-			}
-
-		}
-		if (state != TokenizerState.START) {
-			if (state == TokenizerState.STRING)
-				throw new CancellationException("Brak '\"' kończącego stałą typu string. Kolumna: " + line.length());
-		}
-		return tokens;
-
-	}
-
-	private TokenizerState praseString(char c, StringBuilder sb, ArrayList<Token> tokens) {
-		sb.append(c);
-		if (sb.length() > 1 && c == '"') {
-			tokens.add(new Token(sb.toString(), TokenType.STRING_CONST,this.line));
-			sb.setLength(0);
-			return TokenizerState.START;
-		}
-		return TokenizerState.STRING;
-	}
-
-	private TokenizerState parseWord(char c, StringBuilder sb, ArrayList<Token> tokens) {
-		if (isAlphaNumeric(c)) {
-			sb.append(c);
-			return TokenizerState.WORD;
-		} else {
-			if (isDataType(sb.toString())) {
-				tokens.add(new Token(sb.toString(), TokenType.DATA_TYPE,this.line));
-			} else if (isKeyWord(sb.toString())) {
-				tokens.add(new Token(sb.toString(), TokenType.KEY_WORD,this.line));
+		while (true) {
+			if (sb.length() > 1 && fileLoader.getCurrentChar() == '"') {
+				sb.append(fileLoader.getCurrentCharAndAdvance());
+				return new VarToken(sb.toString(), TokenType.STRING_CONST, TokenPriority.LOW, TokenType.STRING_CONST,
+						fileLoader.getLine());
 			} else {
-				tokens.add(new Token(sb.toString(), TokenType.VAR,this.line));
+				sb.append(fileLoader.getCurrentCharAndAdvance());
 			}
-			sb.setLength(0);
-			return TokenizerState.START;
 		}
 	}
 
-	private int parseSpecial(int i, String newLine, StringBuilder sb, ArrayList<Token> tokens) {
-		ArrayList<String> tok = null;
-		for (; i < newLine.length(); ++i) {
-			sb.append(newLine.charAt(i));
+	private Token parseWord() throws IOException {
+		StringBuilder sb = new StringBuilder();
+		while (true) {
+			if (isAlphaNumeric(fileLoader.getCurrentChar())) {
+				sb.append(fileLoader.getCurrentCharAndAdvance());
+			} else {
+				TokenType tokType = getTokenForString(sb.toString());
+				if (tokType != null) {
+					return new Token(getParentTokenType(tokType), getTokenPriority(tokType), tokType, fileLoader.getLine());
+				} else {
+					return new VarToken(sb.toString(), TokenType.VAR, TokenPriority.LOW, TokenType.VAR, fileLoader.getLine());
+				}
+			}
+		}
+	}
+
+	private TokenType getParentTokenType(TokenType tokType) {
+		for (TokenType tokenType : Arrays.asList(HIGHEST_PRIORITY_OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.HIGHEST_PRIORITY_OPERATOR;
+		for (TokenType tokenType : Arrays.asList(HIGH_PRIORITY_OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.HIGH_PRIORITY_OPERATOR;
+		for (TokenType tokenType : Arrays.asList(MEDIUM_PRIORITY_OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.MEDIUM_PRIORITY_OPERATOR;
+		for (TokenType tokenType : Arrays.asList(LOW_PRIORITY_OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.LOW_PRIORITY_OPERATOR;
+		for (TokenType tokenType : Arrays.asList(LOGICAL_OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.LOGICAL_OPERATOR;
+		for (TokenType tokenType : Arrays.asList(COMPARISON_OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.COMPARISON_OPERATOR;
+		for (TokenType tokenType : Arrays.asList(DATA_TYPES))
+			if (tokenType.equals(tokType))
+				return TokenType.DATA_TYPE;
+		for (TokenType tokenType : Arrays.asList(KEY_WORDS))
+			if (tokenType.equals(tokType))
+				return TokenType.KEY_WORD;
+		for (TokenType tokenType : Arrays.asList(OPERATOR))
+			if (tokenType.equals(tokType))
+				return TokenType.OPERATOR;
+		return null;
+	}
+
+	private TokenPriority getTokenPriority(TokenType tokType) {
+		return PRIORITY.get(tokType);
+	}
+
+	private Token parseSpecial() throws IOException {
+		ArrayList<TokenType> tok;
+		StringBuilder sb = new StringBuilder();
+		while (true) {
+			sb.append(fileLoader.getCurrentCharAndAdvance());
 			tok = getTokensStartWith(sb.toString());
 			if (tok.size() == 0) {
 				sb.deleteCharAt(sb.length() - 1);
-				if (getTokenEquals(sb.toString()) == null)
-					throw new CancellationException("Błąd gramatyczny podczas wczytywania operatora. Kolumna: " + i);
+				TokenType tokType = getTokenEquals(sb.toString());
+				if (tokType == null)
+					throw new CancellationException("Błąd gramatyczny podczas wczytywania operatora.");
 				else {
-					tokens.add(new Token(sb.toString(), getTokenType(sb.toString()),this.line));
-					sb.setLength(0);
-					--i;
-					return i;
+					fileLoader.regress();
+					return new Token(getParentTokenType(tokType), getTokenPriority(tokType), tokType, fileLoader.getLine());
 				}
-			} else if (tok.size() == 1 && tok.get(0).equals(sb.toString())) {
-				tokens.add(new Token(sb.toString(), getTokenType(sb.toString()),this.line));
-				sb.setLength(0);
-				return i;
+			} else if (tok.size() == 1 && tok.get(0).equals(TOKENS.get(sb.toString()))) {
+				return new Token(getParentTokenType(TOKENS.get(sb.toString())),
+						getTokenPriority(TOKENS.get(sb.toString())), TOKENS.get(sb.toString()), fileLoader.getLine());
 			}
 		}
-		return i;
+
 	}
 
-	private TokenType getTokenType(String token) {
-		if (Arrays.asList(HIGHEST_PRIORITY_OPERATOR).contains(token))
-			return TokenType.HIGHEST_PRIORITY_OPERATOR;
-		if (Arrays.asList(HIGH_PRIORITY_OPERATOR).contains(token))
-			return TokenType.HIGH_PRIORITY_OPERATOR;
-		if (Arrays.asList(MEDIUM_PRIORITY_OPERATOR).contains(token))
-			return TokenType.MEDIUM_PRIORITY_OPERATOR;
-		if (Arrays.asList(LOW_PRIORITY_OPERATOR).contains(token))
-			return TokenType.LOW_PRIORITY_OPERATOR;
-		if (Arrays.asList(LOGICAL_OPERATOR_H).contains(token))
-			return TokenType.OPERATOR_NOT;
-		if (Arrays.asList(LOGICAL_OPERATOR_M).contains(token))
-			return TokenType.OPERATOR_AND;
-		if (Arrays.asList(LOGICAL_OPERATOR_L).contains(token))
-			return TokenType.OPERATOR_OR;
-		if (Arrays.asList(COMPARISON_OPERATOR).contains(token))
-			return TokenType.COMPARISON_OPERATOR;
-		if (Arrays.asList(OPERATOR).contains(token))
-			return TokenType.OPERATOR;
-		throw new CancellationException("Brak definicji operatora dla tokena: " + token);
-	}
-
-	private TokenizerState parseNumber(char c, StringBuilder sb, int i, ArrayList<Token> tokens) {
-		if (isDigit(c))
-			sb.append(c);
-		else if (isLetter(c) || c == CHAR_)
-			throw new CancellationException("Niedozwolony znak. Kolumna: " + i);
-		else {
-			tokens.add(new Token(sb.toString(), TokenType.CONST,this.line));
-			sb.setLength(0);
-
-			return TokenizerState.START;
+	private Token tokenizeNumber() throws IOException {
+		StringBuilder sb = new StringBuilder();
+		while (true) {
+			if (isDigit(fileLoader.getCurrentChar())) {
+				sb.append(fileLoader.getCurrentCharAndAdvance());
+			} else if (isLetter(fileLoader.getCurrentChar()) || fileLoader.getCurrentChar() == CHAR_)
+				throw new CancellationException("Niedozwolony znak. Kolumna: " + fileLoader.getColumn());
+			else {
+				return new VarToken(sb.toString(), TokenType.CONST, TokenPriority.LOW, TokenType.CONST, fileLoader.getLine());
+			}
 		}
-		return TokenizerState.NUMBER;
 	}
 
-	private TokenizerState getNextState(char c, int i) {
-		if (Character.isWhitespace(c))
-			return TokenizerState.START;
-		else if (isDigit(c))
+	private TokenizerState getNextState(char c) {
+		if (isDigit(c))
 			return TokenizerState.NUMBER;
 		else if (isLetter(c))
 			return TokenizerState.WORD;
@@ -205,7 +185,7 @@ public class Tokenizer {
 		else if (c == '"')
 			return TokenizerState.STRING;
 		else
-			throw new CancellationException("Niedozwolony znak. Kolumna: " + i);
+			throw new CancellationException("Niedozwolony znak. Linia: "+fileLoader.getLine()+" Kolumna: " + fileLoader.getColumn());
 	}
 
 	private boolean isLetter(char c) {
@@ -220,76 +200,137 @@ public class Tokenizer {
 		return isDigit(c) || isLetter(c) || c == CHAR_;
 	}
 
-	private boolean isToken(String token) {
-		for (int i = 0; i < TOKENS.length; ++i) {
-			if (TOKENS[i].startsWith(token))
-				return true;
-		}
-		return false;
+	private TokenType getTokenForString(String token) {
+		if (TOKENS.containsKey(token))
+			return TOKENS.get(token);
+		return null;
 	}
 
-	private boolean isKeyWord(String token) {
-		for (int i = 0; i < KEY_WORDS.length; ++i) {
-			if (KEY_WORDS[i].equals(token))
-				return true;
-		}
-		return false;
-	}
-
-	private boolean isDataType(String token) {
-		for (int i = 0; i < DATA_TYPES.length; ++i) {
-			if (DATA_TYPES[i].equals(token))
-				return true;
-		}
-		return false;
-	}
-
-	private ArrayList<String> getTokensStartWith(String token) {
-		ArrayList<String> tokens = new ArrayList<>();
-		for (int i = 0; i < TOKENS.length; ++i) {
-			if (TOKENS[i].startsWith(token))
-				tokens.add(TOKENS[i]);
+	private ArrayList<TokenType> getTokensStartWith(String token) {
+		ArrayList<TokenType> tokens = new ArrayList<>();
+		for (String key : TOKENS.keySet()) {
+			if (key.startsWith(token))
+				tokens.add(TOKENS.get(key));
 		}
 		return tokens;
 	}
 
-	private String getTokenEquals(String token) {
-		for (int i = 0; i < TOKENS.length; ++i) {
-			if (TOKENS[i].equals(token))
-				return TOKENS[i];
+	private TokenType getTokenEquals(String token) {
+		return TOKENS.get(token);
+	}
+
+	public void addToken(Token token) {
+		if (tokens.size() >= SIZE)
+			tokens.remove(0);
+		if(bufferIter<tokens.size())
+			++bufferIter;
+		tokens.add(token);
+	}
+
+	private boolean isToken(String token) {
+		for (int i = 0; i < SPECIAL_TOKENS.length; ++i) {
+			if (SPECIAL_TOKENS[i].startsWith(token))
+				return true;
 		}
-		return null;
+		return false;
 	}
 
-	public Token getCurrentWithAdvance() {
-		if (iterator < tokens.size()) {
-			return tokens.get(iterator++);
-		}
-		return null;
+	private static final String[] SPECIAL_TOKENS = { "(", ")", ",", ".", "{", "}", ";", "!", "=", "|", "&", "==", "!=",
+			"<", ">", "<=", ">=", "+", "++", "-", "--", "*", "/", "[", "]", "+=", "-=" };
+	private static final HashMap<String, TokenType> TOKENS;
+	private static final HashMap<TokenType, TokenPriority> PRIORITY;
+	static {
+		TOKENS = new HashMap<String, TokenType>();
+		TOKENS.put("(", TokenType.L_BRACKET);
+		TOKENS.put(")", TokenType.R_BRACKET);
+		TOKENS.put(",", TokenType.COMMA);
+		TOKENS.put(".", TokenType.DOT);
+		TOKENS.put("{", TokenType.L_BR);
+		TOKENS.put("}", TokenType.R_BR);
+		TOKENS.put(";", TokenType.SEMICOLON);
+		TOKENS.put("!", TokenType.NOT);
+		TOKENS.put("=", TokenType.EQUAL);
+		TOKENS.put("|", TokenType.OR);
+		TOKENS.put("&", TokenType.AND);
+		TOKENS.put("==", TokenType.EQUALS);
+		TOKENS.put("!=", TokenType.NEQUALS);
+		TOKENS.put("<", TokenType.LT);
+		TOKENS.put(">", TokenType.GT);
+		TOKENS.put("<=", TokenType.LET);
+		TOKENS.put(">=", TokenType.GET);
+		TOKENS.put("+", TokenType.SUM);
+		TOKENS.put("++", TokenType.INC);
+		TOKENS.put("-", TokenType.SUBTRACTION);
+		TOKENS.put("--", TokenType.DEC);
+		TOKENS.put("*", TokenType.MUL);
+		TOKENS.put("/", TokenType.DIVIDE);
+		TOKENS.put("[", TokenType.L_INDEX_OPERATOR);
+		TOKENS.put("]", TokenType.R_INDEX_OPERATOR);
+		TOKENS.put("long", TokenType.LONG);
+		TOKENS.put("bool", TokenType.BOOL);
+		TOKENS.put("double", TokenType.DOUBLE);
+		TOKENS.put("string", TokenType.STRING);
+		TOKENS.put("list", TokenType.LIST);
+		TOKENS.put("+=", TokenType.SUM_EQ);
+		TOKENS.put("-=", TokenType.SUB_EQ);
+		TOKENS.put("if", TokenType.IF);
+		TOKENS.put("else", TokenType.ELSE);
+		TOKENS.put("for", TokenType.FOR);
+		TOKENS.put("while", TokenType.WHILE);
+		TOKENS.put("func", TokenType.FUNC);
+		TOKENS.put("return", TokenType.RETURN);
+
+		PRIORITY = new HashMap<TokenType, TokenPriority>();
+		PRIORITY.put(TokenType.L_BRACKET, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.R_BRACKET, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.DOT, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.NOT, TokenPriority.HIGH);
+		PRIORITY.put(TokenType.EQUAL, TokenPriority.LOW);
+		PRIORITY.put(TokenType.OR, TokenPriority.LOW);
+		PRIORITY.put(TokenType.AND, TokenPriority.MED);
+		PRIORITY.put(TokenType.EQUALS, TokenPriority.LOW);
+		PRIORITY.put(TokenType.NEQUALS, TokenPriority.LOW);
+		PRIORITY.put(TokenType.LT, TokenPriority.LOW);
+		PRIORITY.put(TokenType.GT, TokenPriority.LOW);
+		PRIORITY.put(TokenType.LET, TokenPriority.LOW);
+		PRIORITY.put(TokenType.GET, TokenPriority.LOW);
+		PRIORITY.put(TokenType.SUM, TokenPriority.MED);
+		PRIORITY.put(TokenType.INC, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.SUBTRACTION, TokenPriority.MED);
+		PRIORITY.put(TokenType.DEC, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.MUL, TokenPriority.HIGH);
+		PRIORITY.put(TokenType.DIVIDE, TokenPriority.HIGH);
+		PRIORITY.put(TokenType.L_INDEX_OPERATOR, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.R_INDEX_OPERATOR, TokenPriority.HIGHEST);
+		PRIORITY.put(TokenType.SUM_EQ, TokenPriority.LOW);
+		PRIORITY.put(TokenType.SUB_EQ, TokenPriority.LOW);
 	}
 
-	public Token getCurrent() {
-		if (iterator < tokens.size()) {
-			return tokens.get(iterator);
-		}
-		return null;
-	}
+	public static final TokenType[] HIGHEST_PRIORITY_OPERATOR = { TokenType.L_BRACKET, TokenType.R_BRACKET,
+			TokenType.INC, TokenType.DEC };
+	public static final TokenType[] HIGH_PRIORITY_OPERATOR = { TokenType.MUL, TokenType.DIVIDE };
+	public static final TokenType[] MEDIUM_PRIORITY_OPERATOR = { TokenType.SUM, TokenType.SUBTRACTION };
+	private static final TokenType[] LOW_PRIORITY_OPERATOR = { TokenType.EQUAL, TokenType.SUB_EQ, TokenType.SUM_EQ };
+	private static final TokenType[] LOGICAL_OPERATOR = { TokenType.NOT, TokenType.AND, TokenType.OR };
+	private static final TokenType[] COMPARISON_OPERATOR = { TokenType.EQUALS, TokenType.NEQUALS, TokenType.LT,
+			TokenType.GT, TokenType.GET, TokenType.LET };
+	private static final TokenType[] OPERATOR = { TokenType.DOT, TokenType.L_BR, TokenType.R_BR,
+			TokenType.L_INDEX_OPERATOR, TokenType.R_INDEX_OPERATOR, TokenType.SEMICOLON, TokenType.COMMA };
 
-	public Token getNext() {
-		if (iterator < tokens.size())
-			return tokens.get(++iterator);
-		return null;
-	}
+	private static final TokenType[] DATA_TYPES = { TokenType.BOOL, TokenType.LIST, TokenType.LONG, TokenType.STRING,
+			TokenType.DOUBLE };
+	private static final TokenType[] KEY_WORDS = { TokenType.FUNC, TokenType.IF, TokenType.FOR, TokenType.WHILE,
+			TokenType.ELSE, TokenType.RETURN };
+	private static final char CHAR_a = 'a';
+	private static final char CHAR_z = 'z';
+	private static final char CHAR_A = 'A';
+	private static final char CHAR_Z = 'Z';
+	private static final char DIGIT_0 = '0';
+	private static final char DIGIT_9 = '9';
+	private static final char CHAR_ = '_';
 
-	public void advance() {
-		++iterator;
-	}
-
-	public void regress() {
-		--iterator;
+	public long getLine() {
+		return fileLoader.getLine();
 	}
 
 }
-// private static final String[] MEDIUM_PRIORITY_OPERATOR = { "(", ")", ",",
-// ".", "{", "}", ";", "!", "=", "|", "&", "==", "!=", "<", ">",
-// "<=", ">=", "+", "++", "-", "--", "*", "/", "[", "]", "+=", "-=" };

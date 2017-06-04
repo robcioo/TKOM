@@ -1,17 +1,12 @@
 package tokenizer;
 
+import java.util.concurrent.CancellationException;
+
 public class Token {
-	private String value;
+	private TokenType parentType;
 	private TokenType type;
+	private TokenPriority priority;
 	private long line;
-	public String getValue() {
-		return value;
-	}
-
-
-	public void setValue(String value) {
-		this.value = value;
-	}
 
 
 	public TokenType getType() {
@@ -25,21 +20,41 @@ public class Token {
 
 
 
-	public Token(String value, TokenType type, long line) {
+	public Token(TokenType parentType,TokenPriority priority, TokenType type, long line) {
 		super();
-		this.value = value;
+		if(type==null)
+			throw new CancellationException("Token constructor: type cannot be null");
+		this.priority = priority;
 		this.type = type;
 		this.line=line;
+		this.setParentType(parentType);
 	}
 	
 	
 	@Override
 	public String toString() {
-		return "{value: "+value+" type: "+type.toString()+"}";
+		return "{Prority: "+priority+" type: "+type.toString()+"}";
 	}
 
 
-	public long getLine() {
-		return line;
+
+
+	public TokenPriority getPriority() {
+		return priority;
+	}
+
+
+	public void setPriority(TokenPriority priority) {
+		this.priority = priority;
+	}
+
+
+	public TokenType getParentType() {
+		return parentType;
+	}
+
+
+	public void setParentType(TokenType parentType) {
+		this.parentType = parentType;
 	}
 }
