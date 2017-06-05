@@ -1,5 +1,7 @@
 package parser.values;
 
+import java.util.concurrent.CancellationException;
+
 import parser.Expression;
 import semantics.Scope;
 
@@ -12,8 +14,10 @@ public class Not implements Expression {
 
 	@Override
 	public Object evaluate(Scope scope) {
-		// TODO Auto-generated method stub
-		return null;
+		Object ob=ex.evaluate(scope);
+		if(!(ob instanceof Boolean))
+			throw new CancellationException("Nie mozna zanegowac obiektu klasy "+ob.getClass());
+		return new Boolean(!(Boolean)ob);
 	}
 
 }

@@ -10,7 +10,7 @@ public class Sum extends AdditiveExpression {
 
 	@Override
 	public Object evaluate(Scope scope) {
-		return sum(arguments.get(0), arguments.get(1));
+		return sum(arguments.get(0).evaluate(scope), arguments.get(1).evaluate(scope));
 	}
 
 	public static Object sum(Object ob, Object expr) {
@@ -37,6 +37,6 @@ public class Sum extends AdditiveExpression {
 				return arr1;
 			}
 		}
-		throw new CancellationException("Bledne argumenty sumowania.");
+		throw new CancellationException("Bledne argumenty sumowania. ("+ob.getClass()+", "+expr.getClass()+")");
 	}
 }

@@ -25,6 +25,8 @@ import parser.values.Equals;
 import parser.values.GreaterEqualThan;
 import parser.values.GreaterThan;
 import parser.values.Increment;
+import parser.values.ListConst;
+import parser.values.ListIndexOperator;
 import parser.values.LowerEqualThan;
 import parser.values.LowerThan;
 import parser.values.Multiplication;
@@ -64,7 +66,7 @@ public class Parser {
 				// FunctionStatement());
 				Pair<FunctionStatement, Boolean> result = parseFunc();
 				functions.put(((VarToken) functionNameToken).getValue(), result.getLeft());
-				if(result.getRight().equals(false))
+				if (result.getRight().equals(false))
 					break;
 			}
 		} catch (CancellationException e) {
@@ -75,7 +77,7 @@ public class Parser {
 		}
 	}
 
-	private Pair<FunctionStatement, Boolean>  parseFunc() throws IOException {
+	private Pair<FunctionStatement, Boolean> parseFunc() throws IOException {
 		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
 		FunctionStatement functionStatement = new FunctionStatement();
 		if (!tokenizer.getCurrentToken().getType().equals(TokenType.R_BRACKET)) {
@@ -87,9 +89,9 @@ public class Parser {
 			functionStatement.addInstructions(parseInstructions());
 		}
 		accept(TokenType.R_BR, tokenizer.getCurrentToken());
-		try{
-		tokenizer.advance();
-		}catch (EndOfFileException e) {
+		try {
+			tokenizer.advance();
+		} catch (EndOfFileException e) {
 			return new Pair<FunctionStatement, Boolean>(functionStatement, new Boolean(false));
 		}
 		return new Pair<FunctionStatement, Boolean>(functionStatement, new Boolean(true));
@@ -149,10 +151,9 @@ public class Parser {
 	}
 
 	private Statement parseReturn() throws IOException {
-		accept(TokenType.RETURN, tokenizer.getCurrentToken());
+		accept(TokenType.RETURN, tokenizer.getCurrentTokenAndAdvance());
 		ReturnStatement returnStatement = new ReturnStatement();
 		returnStatement.setExpresion(parseAddExpression());
-		accept(TokenType.SEMICOLON, tokenizer.getCurrentTokenAndAdvance());
 		return returnStatement;
 	}
 
@@ -189,7 +190,7 @@ public class Parser {
 	public Statement parseStandardInstruction() throws IOException {
 		Token token = tokenizer.getCurrentTokenAndAdvance();
 		if (TokenType.DOT.equals(tokenizer.getCurrentToken().getType())) {
-			ObjectFunctionCall functionCall = new ObjectFunctionCall(((VarToken) token).getValue(),functions);
+			ObjectFunctionCall functionCall = new ObjectFunctionCall(((VarToken) token).getValue(), functions);
 			tokenizer.advance();
 			functionCall.addFunctionCall(parseFunctionCall());
 			return functionCall;
@@ -197,7 +198,8 @@ public class Parser {
 			tokenizer.regress();
 			return parseFunctionCall();
 		} else {
-//			accept(TokenType.VAR, tokenizer.getCurrentTokenAndAdvance().getParentType());
+			// accept(TokenType.VAR,
+			// tokenizer.getCurrentTokenAndAdvance().getParentType());
 			if (TokenType.LOW_PRIORITY_OPERATOR.equals(tokenizer.getCurrentToken().getParentType())) {
 				switch (tokenizer.getCurrentTokenAndAdvance().getType()) {
 				case EQUAL:
@@ -207,11 +209,23 @@ public class Parser {
 				case SUM_EQ:
 					return new SumEq(((VarToken) token).getValue(), parseAddExpression());
 				}
-				throw new CancellationException("Nieobslugiwany operator przypisania. Linia: "+tokenizer.getLine());
+				throw new CancellationException("Nieobslugiwany operator przypisania. Linia: " + tokenizer.getLine());
 			} else
-				throw new CancellationException("Nieobslugiwany operator przypisania. Linia: "+tokenizer.getLine());
+				throw new CancellationException("Nieobslugiwany operator przypisania. Linia: " + tokenizer.getLine());
 		}
 
+	}
+
+	private Expression parseList() throws IOException {
+		ListConst listConst = new ListConst();
+		if (TokenType.R_BR != tokenizer.getCurrentToken().getType())
+			listConst.addArgument(parseAddExpression());
+		while (TokenType.R_BR != tokenizer.getCurrentToken().getType()) {
+			accept(TokenType.COMMA, tokenizer.getCurrentTokenAndAdvance());
+			listConst.addArgument(parseAddExpression());
+		}
+		accept(TokenType.R_BR, tokenizer.getCurrentTokenAndAdvance());
+		return listConst;
 	}
 
 	private Expression parseAddExpression() throws IOException {
@@ -219,6 +233,8 @@ public class Parser {
 		Token token = tokenizer.getCurrentToken();
 		if (!TokenType.MEDIUM_PRIORITY_OPERATOR.equals(token.getParentType()))
 			return arg;
+		tokenizer.advance();
+
 		AdditiveExpression operation;
 		if (TokenType.SUM.equals(token.getType())) {
 			operation = new Sum();
@@ -235,7 +251,7 @@ public class Parser {
 		if (!TokenType.HIGH_PRIORITY_OPERATOR.equals(tokenizer.getCurrentToken().getParentType()))
 			return arg;
 		MultiplicativeExpression operation;
-		if (TokenType.MUL.equals(tokenizer.getCurrentToken().getType())) {
+		if (TokenType.MUL.equals(tokenizer.getCurrentTokenAndAdvance().getType())) {
 			operation = new Multiplication();
 		} else {
 			operation = new Division();
@@ -243,15 +259,6 @@ public class Parser {
 		operation.addArgument(arg);
 		operation.addArgument(parseMulExpression());
 		return operation;
-		// TokenType op = tokenizer.getCurrentToken().getType();
-		// while (op.equals(tokenizer.getCurrentToken().getType())) {
-		// tokenizer.advance();
-		// operation.addArgument(parseHighExpression());
-		// }
-		// if
-		// (TokenType.HIGH_PRIORITY_OPERATOR.equals(tokenizer.getCurrentToken().getParentType()))
-		// parseMulExpression(operation);
-		// return andNode;
 	}
 
 	private Expression parseHighExpression() throws IOException {
@@ -276,36 +283,53 @@ public class Parser {
 			return new Const(((VarToken) token).getValue());
 		} else if (TokenType.STRING_CONST.equals(token.getType())) {
 			return new StringConst(((VarToken) token).getValue());
+		} else if (TokenType.L_BR.equals(token.getType())) {
+			return parseList();
+		} else if (TokenType.SUBTRACTION.equals(token.getType())) {
+			token=tokenizer.getCurrentTokenAndAdvance();
+			Const contValue=new Const(((VarToken) token).getValue());
+			contValue.changeSign();
+			return contValue;
 		} else
-			throw new CancellationException("Nie obsugiwany token w wyraeniu" + token.getType());
+			throw new CancellationException("Nie obsugiwany token w wyrazeniu" + token.getType()+". Linia "+tokenizer.getLine());
+	}
+
+	private Expression parseListIndexOperator(VarToken token) throws IOException {
+		ListIndexOperator operator = new ListIndexOperator(token.getValue());
+		operator.setIndex(parseAddExpression());
+		accept(TokenType.R_INDEX_OPERATOR, tokenizer.getCurrentTokenAndAdvance());
+		return operator;
 	}
 
 	private Expression parseVarExpression() throws IOException {
 		accept(TokenType.VAR, tokenizer.getCurrentToken());
 		Token token = tokenizer.getCurrentTokenAndAdvance();
 		if (TokenType.DOT.equals(tokenizer.getCurrentToken().getType())) {
-			ObjectFunctionCall functionCall = new ObjectFunctionCall(((VarToken) token).getValue(),functions);
+			ObjectFunctionCall functionCall = new ObjectFunctionCall(((VarToken) token).getValue(), functions);
 			tokenizer.advance();
 			functionCall.addFunctionCall(parseFunctionCall());
 			return functionCall;
+		} else if (TokenType.L_INDEX_OPERATOR.equals(tokenizer.getCurrentToken().getType())) {
+			tokenizer.advance();
+			return parseListIndexOperator((VarToken) token);
+		} else if (TokenType.L_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
+			tokenizer.regress();
+			return parseFunctionCall();
 		}
 		return new Value(((VarToken) token).getValue());
 	}
 
 	private FuctionCallStatement parseFunctionCall() throws IOException {
 		accept(TokenType.VAR, tokenizer.getCurrentToken());
-		// Node<Token> newNode = new Node<Token>(
-		// new Token(tokenizer.getCurrentTokenAndAdvance().getValue(),
-		// TokenType.FUNCTION_CALL, 0));
 		FuctionCallStatement oper = new FuctionCallStatement(
-				((VarToken) tokenizer.getCurrentTokenAndAdvance()).getValue(),functions);
+				((VarToken) tokenizer.getCurrentTokenAndAdvance()).getValue(), functions);
 		accept(TokenType.L_BRACKET, tokenizer.getCurrentTokenAndAdvance());
 		if (!TokenType.R_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
-			oper.addArgument(parseStandardInstruction());
+			oper.addArgument(parseAddExpression());
 		}
 		while (!TokenType.R_BRACKET.equals(tokenizer.getCurrentToken().getType())) {
 			accept(TokenType.COMMA, tokenizer.getCurrentTokenAndAdvance());
-			oper.addArgument(parseStandardInstruction());
+			oper.addArgument(parseAddExpression());
 		}
 		accept(TokenType.R_BRACKET, tokenizer.getCurrentTokenAndAdvance());
 		return oper;
@@ -356,20 +380,6 @@ public class Parser {
 		operator.addArgument(arg);
 		operator.addArgument(parseOrCondition());
 		return operator;
-
-		// Node<Token> newNode = parseOrCondition();
-		// if
-		// (!tokenizer.getCurrentToken().getType().equals(TokenType.COMPARISON_OPERATOR))
-		// return newNode;
-		// Node<Token> orNode = new Node<Token>(tokenizer.getCurrentToken());
-		// orNode.addLChild(newNode);
-		// while
-		// (tokenizer.getCurrentTokenAndAdvance().getType().equals(TokenType.COMPARISON_OPERATOR))
-		// {
-		// orNode.addLChild(parseOrCondition());
-		// }
-		// tokenizer.regress();
-		// return orNode;
 	}
 
 	private Expression parseOrCondition() throws IOException {
@@ -434,13 +444,6 @@ public class Parser {
 		return new VarDeclaration(dataType.getType(), ((VarToken) name).getValue());
 	}
 
-	// private void accept(String expectedToken, Token token) {
-	// if (!expectedToken.equals(token.getValue()))
-	// throw new CancellationException("Spodziewano się: " + expectedToken + ",
-	// a jest: " + token.getValue()
-	// + ". Linia: " + token.getLine());
-	// }
-
 	private void accept(TokenType expectedToken, Token token) {
 		if (!expectedToken.equals(token.getType()))
 			throw new CancellationException("Spodziewano się: " + expectedToken + ", a jest: " + token.getType()
@@ -461,9 +464,9 @@ public class Parser {
 		this.functions = functions;
 	}
 
-	public Object execute(String func,ArrayList<Object> args) {
-		FunctionStatement functionStatement=functions.get(func);
-		return functionStatement.execute(new Scope(),args);
-		
+	public Object execute(String func, ArrayList<Object> args) {
+		FunctionStatement functionStatement = functions.get(func);
+		return functionStatement.execute(new Scope(), args);
+
 	}
 }

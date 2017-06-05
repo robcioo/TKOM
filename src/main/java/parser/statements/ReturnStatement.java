@@ -14,14 +14,13 @@ public class ReturnStatement implements Statement{
 		return expresion;
 	}
 
-	public void setExpresion(Expression xspresion) {
+	public void setExpresion(Expression expresion) {
 		this.expresion = expresion;
 	}
 
 	@Override
 	public Object execute(Scope scope, ArrayList<Object> args) {
-		// TODO Auto-generated method stub
-		
+		return expresion.evaluate(scope);
 	}
 	
 }

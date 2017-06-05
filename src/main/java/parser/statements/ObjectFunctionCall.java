@@ -31,7 +31,7 @@ public class ObjectFunctionCall implements Expression, Statement{
 
 	@Override
 	public Object execute(Scope scope, ArrayList<Object> args) {
-		return functionCall.execute(scope,new ArrayList<>(Arrays.asList(true, scope.getValue(varName))));
+		return functionCall.execute(scope,new ArrayList<>(Arrays.asList(true,varName)));
 	}
 
 }

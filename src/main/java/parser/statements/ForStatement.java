@@ -43,14 +43,13 @@ public class ForStatement implements Statement {
 	public Object execute(Scope scope, ArrayList<Object> args) {
 		Scope currScope=new Scope(scope);
 		FunctionStatement.runInstructions(init, currScope);
-		Object ret=null;
 		while((Boolean)condition.evaluate(currScope)){
-			ret=FunctionStatement.runInstructions(instructions, currScope);
+			Object ret = FunctionStatement.runInstructions(instructions, new Scope(currScope));
+			if(ret!=null)
+				return ret;
 			post.evaluate(currScope);
 		}
-		if(ret==null)
-			return new ArrayList<>();
-		return ret;
+		return null;
 		
 	}
 }

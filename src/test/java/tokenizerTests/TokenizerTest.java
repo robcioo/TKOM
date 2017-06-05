@@ -2,6 +2,7 @@ package tokenizerTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.concurrent.CancellationException;
 
@@ -10,8 +11,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import Tree.Node;
-import Tree.Tree;
+import app.Wrapper;
 import files_loader.EndOfFileException;
 import files_loader.SourceLoader;
 import parser.Parser;
@@ -23,11 +23,53 @@ import parser.values.Equal;
 import tokenizer.Token;
 import tokenizer.TokenType;
 import tokenizer.Tokenizer;
-import tokenizer.VarToken;
 
 public class TokenizerTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
+
+	@Test
+	public void SortTest() throws IOException {
+		Tokenizer tokenizer = new Tokenizer(new SourceLoader(
+				// @formatter:off
+				"func sortArray(list x) {"
+				+ "list l={};"
+				+ "while(x.length()>0){"
+					+ "long max=x[0];"
+					+ "for(long j=0;j<x.length();++j){"
+						+ "if(x[j]>max){"
+							+ "max=x[j];"
+						+ "};"
+					+ "};"
+					+ "l+=max;"
+					+ "x-=max;"
+					+ "max=-1;"
+				+ "};"
+				+ "return l;"
+			+ "}"));
+		// @formatter:on
+		Parser parser = new Parser(tokenizer);
+		parser.parse();
+		Assert.assertEquals(new ArrayList<>(Arrays.asList(new Long(5),new Long(4),new Long(3),new Long(2),new Long(1))), parser.execute("sortArray",
+				new ArrayList<>(Arrays.asList(new Wrapper(new ArrayList<>(
+						Arrays.asList(new Long(2),new Long(1),new Long(4),new Long(3),new Long(5),new Long(5))
+						))))));
+	}
+
+	@Test
+	public void RecursionTest() throws IOException {
+		Tokenizer tokenizer = new Tokenizer(new SourceLoader(
+				// @formatter:off
+				 "func silnia(long num){"
+				 + "if(num>1){"
+				 	+ "return num*silnia(num+(-1));};"
+				 + "return 1;}"));
+				// @formatter:on
+		Parser parser = new Parser(tokenizer);
+		parser.parse();
+		Assert.assertEquals(new Long(120),
+				parser.execute("silnia", new ArrayList<>(Arrays.asList(new Wrapper(new Long(5))))));
+	}
 
 	@Test
 	public void emptyFunctionParse() throws IOException {
@@ -58,104 +100,11 @@ public class TokenizerTest {
 		Assert.assertEquals(2, function.getArguments().size());
 		Assert.assertEquals(FunctionStatement.class, function.getClass());
 		ArrayList<Statement> instructions = function.getInstructions();
-		Assert.assertEquals(VarDeclaration.class,instructions.get(0).getClass());
-		Assert.assertEquals(Equal.class,instructions.get(1).getClass());
-		Assert.assertEquals(IfStatement.class,instructions.get(2).getClass());
-		Assert.assertEquals(3,instructions.size());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(4).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(5).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(6).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(7).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(8).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(9).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(10).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(11).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(12).getClass());
-//		Assert.assertEquals(VarDeclaration.class,instructions.get(13).getClass());
+		Assert.assertEquals(VarDeclaration.class, instructions.get(0).getClass());
+		Assert.assertEquals(Equal.class, instructions.get(1).getClass());
+		Assert.assertEquals(IfStatement.class, instructions.get(2).getClass());
+		Assert.assertEquals(3, instructions.size());
 	}
-
-	// @Test
-	// public void parseSimpleIf() {
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("if(a){})");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseIf(node);
-	// Node<Token> ifek = node.getChildren().get(0);
-	// Node<Token> cond = ifek.getChildren().get(0);
-	// Node<Token> a = cond.getChildren().get(0);
-	//
-	//
-	// Assert.assertEquals("a", a.getData().getValue());
-	//
-	//
-	// }
-	// @Test
-	// public void parseIf() {
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("if(a & b | c){})");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseIf(node);
-	// Node<Token> ifek = node.getChildren().get(0);
-	// Node<Token> cond = ifek.getChildren().get(0);
-	// Node<Token> or = cond.getChildren().get(0);
-	// Node<Token> and = or.getChildren().get(0);
-	// Node<Token> a = and.getChildren().get(0);
-	// Node<Token> b = and.getChildren().get(1);
-	// Node<Token> c = or.getChildren().get(1);
-	//
-	//
-	// Assert.assertEquals("c", c.getData().getValue());
-	// Assert.assertEquals("b", b.getData().getValue());
-	// Assert.assertEquals("a", a.getData().getValue());
-	//
-	//
-	// }
-	// @Test
-	// public void parseIfWithDoubleBracket() {
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("if(a & (b & (c | d | e))){})");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseIf(node);
-	// Node<Token> ifek = node.getChildren().get(0);
-	// Node<Token> cond = ifek.getChildren().get(0);
-	// Node<Token> and = cond.getChildren().get(0);
-	// Node<Token> a = and.getChildren().get(0);
-	// Node<Token> andBr = and.getChildren().get(1);
-	// Node<Token> b = andBr.getChildren().get(0);
-	// Node<Token> orBrd = andBr.getChildren().get(1);
-	// Node<Token> c = orBrd.getChildren().get(0);
-	// Node<Token> d = orBrd.getChildren().get(1);
-	// Node<Token> e = orBrd.getChildren().get(2);
-	//
-	//
-	// Assert.assertEquals("c", c.getData().getValue());
-	// Assert.assertEquals("b", b.getData().getValue());
-	// Assert.assertEquals("a", a.getData().getValue());
-	// Assert.assertEquals("d", d.getData().getValue());
-	// Assert.assertEquals("e", e.getData().getValue());
-	// }
-	// @Test
-	// public void parseIfWithBracket() {
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("if(a & (b | c)){};");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseIf(node);
-	// Node<Token> ifek = node.getChildren().get(0);
-	// Node<Token> cond = ifek.getChildren().get(0);
-	// Node<Token> and = cond.getChildren().get(0);
-	// Node<Token> a = and.getChildren().get(0);
-	// Node<Token> orBr = and.getChildren().get(1);
-	// Node<Token> b = orBr.getChildren().get(0);
-	// Node<Token> c = orBr.getChildren().get(1);
-	//
-	// Assert.assertEquals("c", c.getData().getValue());
-	// Assert.assertEquals("b", b.getData().getValue());
-	// Assert.assertEquals("a", a.getData().getValue());
-	// }
 
 	@Test
 	public void tokenizeTest() {
@@ -201,82 +150,5 @@ public class TokenizerTest {
 			e.printStackTrace();
 		}
 	}
-	//
-	// @Test
-	// public void instructionTest(){
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("a=a+b*c;");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseStandardInstruction(node);
-	//
-	// Node<Token> equals = node.getChildren().get(0);
-	// Node<Token> ae = equals.getChildren().get(0);
-	// Node<Token> add = equals.getChildren().get(1);
-	// Node<Token> a = add.getChildren().get(0);
-	// Node<Token> mul = add.getChildren().get(1);
-	// Node<Token> b = mul.getChildren().get(0);
-	// Node<Token> c = mul.getChildren().get(1);
-	// Assert.assertEquals("c", c.getData().getValue());
-	// Assert.assertEquals("b", b.getData().getValue());
-	// Assert.assertEquals("a", a.getData().getValue());
-	// Assert.assertEquals("a", ae.getData().getValue());
-	//
-	// }
-	// @Test
-	// public void declarationWithInitializationTest(){
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("string a=a+b*c;");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseCompoundInstruction(node);
-	//
-	// Node<Token> dataType = node.getChildren().get(0);
-	// Node<Token> name = dataType.getChildren().get(0);
-	// Node<Token> equals = node.getChildren().get(1);
-	// Node<Token> ae = equals.getChildren().get(0);
-	// Node<Token> add = equals.getChildren().get(1);
-	// Node<Token> a = add.getChildren().get(0);
-	// Node<Token> mul = add.getChildren().get(1);
-	// Node<Token> b = mul.getChildren().get(0);
-	// Node<Token> c = mul.getChildren().get(1);
-	// Assert.assertEquals("c", ((VarToken)c.getData()).getValue());
-	// Assert.assertEquals("b",((VarToken) b.getData()).getValue());
-	// Assert.assertEquals("a", ((VarToken)a.getData()).getValue());
-	// Assert.assertEquals("a",((VarToken) ae.getData()).getValue());
-	// Assert.assertEquals("a", ((VarToken)name.getData()).getValue());
-	// Assert.assertEquals("string", dataType.getData().getValue());
-	//
-	// }
-	// @Test
-	// public void instructionTestWithBracket(){
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("a=((((a+(b)))))*c;");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseStandardInstruction(node);
-	//
-	// Node<Token> equals = node.getChildren().get(0);
-	// Node<Token> ae = equals.getChildren().get(0);
-	// Node<Token> mul = equals.getChildren().get(1);
-	// Node<Token> add = mul.getChildren().get(0);
-	// Node<Token> c = mul.getChildren().get(1);
-	// Node<Token> a = add.getChildren().get(0);
-	// Node<Token> b = add.getChildren().get(1);
-	// Assert.assertEquals("c", c.getData().getValue());
-	// Assert.assertEquals("b", b.getData().getValue());
-	// Assert.assertEquals("a", a.getData().getValue());
-	// Assert.assertEquals("a", ae.getData().getValue());
-	//
-	// }
-	// @Test
-	// public void functionTest(){
-	// Tokenizer tokenizer = new Tokenizer();
-	// tokenizer.tokenizeString("c.length(print());");
-	// Parser parser = new Parser(tokenizer);
-	// Node<Token> node = new Node<Token>(new Token("", TokenType.KEY_WORD,0));
-	// parser.parseInstruction(node);
-	//
-	// }
 
 }

@@ -10,7 +10,7 @@ public class Multiplication  extends MultiplicativeExpression{
 
 	@Override
 	public Object evaluate(Scope scope) {
-		return mul(arguments.get(0), arguments.get(1));
+		return mul(arguments.get(0).evaluate(scope), arguments.get(1).evaluate(scope));
 	}
 	public static Object mul(Object ob, Object expr) {
 		if ((ob instanceof Number) && expr instanceof Number) {
@@ -20,6 +20,6 @@ public class Multiplication  extends MultiplicativeExpression{
 			else
 				return result.doubleValue();
 		}
-		throw new CancellationException("Bledne argumenty odejmowania.");
+		throw new CancellationException("Bledne argumenty mnozenia. ("+ob.getClass()+", "+expr.getClass()+")");
 	}
 }

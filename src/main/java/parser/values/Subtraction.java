@@ -10,7 +10,7 @@ public class Subtraction extends AdditiveExpression {
 
 	@Override
 	public Object evaluate(Scope scope) {
-		return subtract(arguments.get(0), arguments.get(1));
+		return subtract(arguments.get(0).evaluate(scope), arguments.get(1).evaluate(scope));
 	}
 
 	public static Object subtract(Object ob, Object expr) {
@@ -22,7 +22,6 @@ public class Subtraction extends AdditiveExpression {
 				return result.doubleValue();
 		}
 		if (ob instanceof ArrayList) {
-			StringBuilder sb = new StringBuilder(ob.toString());
 			if (expr instanceof ArrayList) {
 				ArrayList<Object> arr1 = (ArrayList<Object>) ob;
 				ArrayList<Object> arr2 = (ArrayList<Object>) expr;
@@ -46,6 +45,6 @@ public class Subtraction extends AdditiveExpression {
 				return arr1;
 			}
 		}
-		throw new CancellationException("Bledne argumenty odejmowania.");
+		throw new CancellationException("Bledne argumenty odejmowania.  ("+ob.getClass()+", "+expr.getClass()+")");
 	}
 }

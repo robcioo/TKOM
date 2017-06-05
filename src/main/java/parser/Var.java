@@ -27,6 +27,6 @@ public class Var {
 	}
 	@Override
 	public String toString() {
-		return (dataType!=null?dataType.toString():"")+" "+(value!=null?value.toString():"null");
+		return (dataType!=null?" Typ: "+dataType.toString()+" ":" ")+" Wartosc: "+(value!=null?value.toString():"null");
 	}
 }

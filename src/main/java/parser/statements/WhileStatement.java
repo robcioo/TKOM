@@ -13,7 +13,6 @@ public class WhileStatement implements Statement{
 	public WhileStatement() {
 		instructions=new ArrayList<>();
 	}
-	
 
 	public void setCondition(Expression condition) {
 		this.condition = condition;
@@ -27,9 +26,14 @@ public class WhileStatement implements Statement{
 	}
 
 	@Override
-	public Object execute(Scope scope, Object... args) {
-		// TODO Auto-generated method stub
-		
+	public Object execute(Scope scope, ArrayList<Object> args) {
+		Scope currScope=new Scope(scope);
+		while((Boolean)condition.evaluate(currScope)){
+			Object ret=FunctionStatement.runInstructions(instructions, new Scope(currScope));
+			if(ret!=null)
+				return ret;
+		}
+		return null;
 	}
 	
 

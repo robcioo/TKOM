@@ -20,7 +20,7 @@ public class Tokenizer {
 
 	public Tokenizer(SourceLoader fileLoader) {
 		this.fileLoader = fileLoader;
-		tokens=new ArrayList<>();
+		tokens = new ArrayList<>();
 	}
 
 	public Token getCurrentToken() {
@@ -38,7 +38,7 @@ public class Tokenizer {
 	}
 
 	public void advance() {
-		if (tokens.size()!=0 && bufferIter+1 < tokens.size()) {
+		if (tokens.size() != 0 && bufferIter + 1 < tokens.size()) {
 			++bufferIter;
 			return;
 		}
@@ -54,8 +54,8 @@ public class Tokenizer {
 			if (Character.isWhitespace(fileLoader.getCurrentChar()))
 				while (Character.isWhitespace(fileLoader.getCurrentChar()))
 					fileLoader.advance();
-			if(fileLoader.getCurrentChar()==' '){
-				
+			if (fileLoader.getCurrentChar() == ' ') {
+
 			}
 			TokenizerState state = getNextState(fileLoader.getCurrentChar());
 			switch (state) {
@@ -96,9 +96,11 @@ public class Tokenizer {
 			} else {
 				TokenType tokType = getTokenForString(sb.toString());
 				if (tokType != null) {
-					return new Token(getParentTokenType(tokType), getTokenPriority(tokType), tokType, fileLoader.getLine());
+					return new Token(getParentTokenType(tokType), getTokenPriority(tokType), tokType,
+							fileLoader.getLine());
 				} else {
-					return new VarToken(sb.toString(), TokenType.VAR, TokenPriority.LOW, TokenType.VAR, fileLoader.getLine());
+					return new VarToken(sb.toString(), TokenType.VAR, TokenPriority.LOW, TokenType.VAR,
+							fileLoader.getLine());
 				}
 			}
 		}
@@ -152,7 +154,8 @@ public class Tokenizer {
 					throw new CancellationException("Błąd gramatyczny podczas wczytywania operatora.");
 				else {
 					fileLoader.regress();
-					return new Token(getParentTokenType(tokType), getTokenPriority(tokType), tokType, fileLoader.getLine());
+					return new Token(getParentTokenType(tokType), getTokenPriority(tokType), tokType,
+							fileLoader.getLine());
 				}
 			} else if (tok.size() == 1 && tok.get(0).equals(TOKENS.get(sb.toString()))) {
 				return new Token(getParentTokenType(TOKENS.get(sb.toString())),
@@ -164,28 +167,39 @@ public class Tokenizer {
 
 	private Token tokenizeNumber() throws IOException {
 		StringBuilder sb = new StringBuilder();
+		boolean flag = false;
+		if (fileLoader.getCurrentChar() == '-')
+			sb.append(fileLoader.getCurrentCharAndAdvance());
 		while (true) {
 			if (isDigit(fileLoader.getCurrentChar())) {
 				sb.append(fileLoader.getCurrentCharAndAdvance());
+			} else if (fileLoader.getCurrentChar() == '.' && !flag) {
+				flag = true;
+				sb.append(fileLoader.getCurrentCharAndAdvance());
+			} else if (fileLoader.getCurrentChar() == '.' && flag) {
+				throw new CancellationException("Niedozwolony znak '.'. Kolumna: " + fileLoader.getColumn());
 			} else if (isLetter(fileLoader.getCurrentChar()) || fileLoader.getCurrentChar() == CHAR_)
 				throw new CancellationException("Niedozwolony znak. Kolumna: " + fileLoader.getColumn());
 			else {
-				return new VarToken(sb.toString(), TokenType.CONST, TokenPriority.LOW, TokenType.CONST, fileLoader.getLine());
+				return new VarToken(sb.toString(), TokenType.CONST, TokenPriority.LOW, TokenType.CONST,
+						fileLoader.getLine());
 			}
 		}
 	}
 
-	private TokenizerState getNextState(char c) {
-		if (isDigit(c))
+	private TokenizerState getNextState(char c) throws IOException {
+		if (isDigit(c)) {
 			return TokenizerState.NUMBER;
-		else if (isLetter(c))
+		}
+		if (isLetter(c))
 			return TokenizerState.WORD;
 		else if (isToken(new Character(c).toString()))
 			return TokenizerState.SPECIAL;
 		else if (c == '"')
 			return TokenizerState.STRING;
 		else
-			throw new CancellationException("Niedozwolony znak. Linia: "+fileLoader.getLine()+" Kolumna: " + fileLoader.getColumn());
+			throw new CancellationException(
+					"Niedozwolony znak. Linia: " + fileLoader.getLine() + " Kolumna: " + fileLoader.getColumn());
 	}
 
 	private boolean isLetter(char c) {
@@ -222,7 +236,7 @@ public class Tokenizer {
 	public void addToken(Token token) {
 		if (tokens.size() >= SIZE)
 			tokens.remove(0);
-		if(bufferIter<tokens.size())
+		if (bufferIter < tokens.size())
 			++bufferIter;
 		tokens.add(token);
 	}
