@@ -56,24 +56,15 @@ public class Parser {
 		setFunctions(new HashMap<>());
 	}
 
-	public void parse() {
-		try {
-			while (tokenizer.getCurrentToken() != null) {
-				accept(TokenType.FUNC, tokenizer.getCurrentTokenAndAdvance());
-				Token functionNameToken = tokenizer.getCurrentTokenAndAdvance();
-				accept(TokenType.VAR, functionNameToken);
-				// Tree<TreeNode> tree = new Tree<TreeNode>(new
-				// FunctionStatement());
-				Pair<FunctionStatement, Boolean> result = parseFunc();
-				functions.put(((VarToken) functionNameToken).getValue(), result.getLeft());
-				if (result.getRight().equals(false))
-					break;
-			}
-		} catch (CancellationException e) {
-			e.printStackTrace();
-			System.out.println(e.getMessage());
-		} catch (IOException e) {
-			e.printStackTrace();
+	public void parse() throws IOException {
+		while (tokenizer.getCurrentToken() != null) {
+			accept(TokenType.FUNC, tokenizer.getCurrentTokenAndAdvance());
+			Token functionNameToken = tokenizer.getCurrentTokenAndAdvance();
+			accept(TokenType.VAR, functionNameToken);
+			Pair<FunctionStatement, Boolean> result = parseFunc();
+			functions.put(((VarToken) functionNameToken).getValue(), result.getLeft());
+			if (result.getRight().equals(false))
+				break;
 		}
 	}
 
@@ -286,12 +277,13 @@ public class Parser {
 		} else if (TokenType.L_BR.equals(token.getType())) {
 			return parseList();
 		} else if (TokenType.SUBTRACTION.equals(token.getType())) {
-			token=tokenizer.getCurrentTokenAndAdvance();
-			Const contValue=new Const(((VarToken) token).getValue());
+			token = tokenizer.getCurrentTokenAndAdvance();
+			Const contValue = new Const(((VarToken) token).getValue());
 			contValue.changeSign();
 			return contValue;
 		} else
-			throw new CancellationException("Nie obsugiwany token w wyrazeniu" + token.getType()+". Linia "+tokenizer.getLine());
+			throw new CancellationException(
+					"Nie obsugiwany token w wyrazeniu" + token.getType() + ". Linia " + tokenizer.getLine());
 	}
 
 	private Expression parseListIndexOperator(VarToken token) throws IOException {

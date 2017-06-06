@@ -1,11 +1,9 @@
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import app.Wrapper;
 import files_loader.SourceLoader;
-import parser.Expression;
 import parser.Parser;
 import tokenizer.Tokenizer;
 

@@ -12,7 +12,7 @@ import tokenizer.Tokenizer;
 public class Application {
 	public static void main(String[] c) {
 		try {
-			Tokenizer tokenizer = new Tokenizer(new SourceLoader(Paths.get("/home/robeek/Desktop/TKOM/test2.txt")));
+			Tokenizer tokenizer = new Tokenizer(new SourceLoader(Paths.get("/home/robeek/Desktop/TKOM/test4.txt")));
 			Parser parser = new Parser(tokenizer);
 			parser.parse();
 			Object result = parser.execute("main", new ArrayList<>());
@@ -20,8 +20,14 @@ public class Application {
 				System.out.println(result.toString());
 		} catch (CancellationException e) {
 			System.out.println(e.getMessage());
+			return;
 		} catch (IOException e) {
+			System.out.println(e.getMessage());
+			return;
+		} catch (Exception e) {
+			System.out.println("Wystapil krytyczny blad. Prosze skontaktowac sie z autorem programu.");
 			e.printStackTrace();
+			return;
 		}
 	}
 }
