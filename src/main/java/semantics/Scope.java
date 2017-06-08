@@ -3,6 +3,7 @@ package semantics;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 
 import parser.Var;
@@ -73,8 +74,8 @@ public class Scope {
 			} else
 				throw new CancellationException("Nie mozna zrzutowac " + value.getClass() + " na Double");
 		case LIST:
-			if (value instanceof ArrayList)
-				return value;
+			if (value instanceof List)
+				return new ArrayList<>((List)value);
 			else {
 				ArrayList<Object> arr = new ArrayList<>();
 				arr.add(value);

@@ -458,6 +458,8 @@ public class Parser {
 
 	public Object execute(String func, ArrayList<Object> args) {
 		FunctionStatement functionStatement = functions.get(func);
+		if(functionStatement==null)
+			throw new CancellationException("Nie zdefiniowano funkcji: "+func);
 		return functionStatement.execute(new Scope(), args);
 
 	}

@@ -12,10 +12,13 @@ import tokenizer.Tokenizer;
 public class Application {
 	public static void main(String[] c) {
 		try {
-			Tokenizer tokenizer = new Tokenizer(new SourceLoader(Paths.get("/home/robeek/Desktop/TKOM/test4.txt")));
+			if (c.length != 2)
+				throw new CancellationException(
+						"Niepoprwana ilość argumentów programu. Spodziwano się 2 argumentów: Ścieżka do pliku z kodem, nazwa funkcji rozpoczynającej program");
+			Tokenizer tokenizer = new Tokenizer(new SourceLoader(Paths.get(c[0])));
 			Parser parser = new Parser(tokenizer);
 			parser.parse();
-			Object result = parser.execute("main", new ArrayList<>());
+			Object result = parser.execute(c[1], new ArrayList<>());
 			if (result != null)
 				System.out.println(result.toString());
 		} catch (CancellationException e) {
@@ -25,9 +28,9 @@ public class Application {
 			System.out.println(e.getMessage());
 			return;
 		} catch (Exception e) {
-			System.out.println("Wystapil krytyczny blad. Prosze skontaktowac sie z autorem programu.");
-			e.printStackTrace();
+			System.out.println("Wystapil krytyczny błąd. Proszę skontaktować się z autorem programu.");
 			return;
 		}
 	}
 }
+		

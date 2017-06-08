@@ -2,6 +2,7 @@ package parser.statements;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 
 import parser.Expression;
@@ -26,20 +27,40 @@ public class FuctionCallStatement implements Statement, Expression {
 
 	@Override
 	public Object execute(Scope scope, ArrayList<Object> args) {
-		if (args.size() == 2 && (boolean) args.get(0)) {// systemowe
-			return executeSystem(name, scope, args.get(1));
-		} else {
-			FunctionStatement func = functions.get(name);
-			return func.execute(new Scope(scope), new ArrayList<Object>(arguments));
-		}
+		FunctionStatement func = functions.get(name);
+		if(func==null)
+			throw new CancellationException("Nie zdefiniowano funkcji: "+ name);
+		return func.execute(new Scope(scope), new ArrayList<Object>(arguments));
+
 	}
 
-	private Object executeSystem(String func, Scope scope, Object var) {
+	public Object executeSystem(Scope scope, ArrayList<Object> args) {
+		return executeSystem(name, scope, args.get(0), arguments);
+	}
+
+	private Object executeSystem(String func, Scope scope, Object var, List<Expression> args) {
 		switch (func) {
 		case "length":
 			return length(var.toString(), scope);
+		case "subList":
+			return subList(var.toString(), scope, args);
 		}
 		throw new CancellationException("Nieobslugiwana funkcja wbudowana: " + func);
+	}
+
+	private Object subList(String var, Scope scope, List<Expression> args) {
+		if(args==null || args.size()!=2)
+			throw new CancellationException("Błędna ilość argumentów funkcji subList. Powinno być 2 a jest:"+args.size());
+		Object ob = scope.getValue(var);
+		Object param1=args.get(0).evaluate(scope);
+		Object param2=args.get(1).evaluate(scope);
+		if(!(ob instanceof ArrayList))
+			throw new CancellationException("Nie można wywolać funkcji subList na zmiennej typu "+ob.getClass());
+		if(!(param1 instanceof Long))
+			throw new CancellationException("Nie można wywolać funkcji subList z parametrem typu "+param1.getClass()+". Oczekiwano long.");
+		if(!(param2 instanceof Long))
+			throw new CancellationException("Nie można wywolać funkcji subList z parametrem typu "+param2.getClass()+". Oczekiwano long.");
+		return ((ArrayList<Object>)ob).subList(((Long)param1).intValue(), ((Long)param2).intValue());
 	}
 
 	private Object length(String var, Scope scope) {

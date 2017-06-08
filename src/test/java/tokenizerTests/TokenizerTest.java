@@ -11,6 +11,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import app.JList;
 import app.Wrapper;
 import files_loader.EndOfFileException;
 import files_loader.SourceLoader;
@@ -27,6 +28,21 @@ import tokenizer.Tokenizer;
 public class TokenizerTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
+
+	@Test
+	public void libraryTest() throws CancellationException, IOException {
+		Object obj = JList.execute(
+				"func sortArray(list x) {" + "list l={};" + "while(x.length()>0){" + "long max=x[0];"
+						+ "for(long j=0;j<x.length();++j){" + "if(x[j]>max){" + "max=x[j];" + "};" + "};" + "l+=max;"
+						+ "x-=max;" + "max=-1;" + "};" + "return l;" + "}",
+				"sortArray",
+				new ArrayList<>(Arrays.asList(new ArrayList<>(Arrays.asList(new Long(4), new Long(3), new Long(6))))));
+		Assert.assertEquals(ArrayList.class, obj.getClass());
+		ArrayList<Object> arr = (ArrayList<Object>) obj;
+		Assert.assertEquals(arr.get(0), new Long(6));
+		Assert.assertEquals(arr.get(1), new Long(4));
+		Assert.assertEquals(arr.get(2), new Long(3));
+	}
 
 	@Test
 	public void SortTest() throws IOException {
@@ -50,10 +66,10 @@ public class TokenizerTest {
 		// @formatter:on
 		Parser parser = new Parser(tokenizer);
 		parser.parse();
-		Assert.assertEquals(new ArrayList<>(Arrays.asList(new Long(5),new Long(4),new Long(3),new Long(2),new Long(1))), parser.execute("sortArray",
-				new ArrayList<>(Arrays.asList(new Wrapper(new ArrayList<>(
-						Arrays.asList(new Long(2),new Long(1),new Long(4),new Long(3),new Long(5),new Long(5))
-						))))));
+		Assert.assertEquals(
+				new ArrayList<>(Arrays.asList(new Long(5), new Long(4), new Long(3), new Long(2), new Long(1))),
+				parser.execute("sortArray", new ArrayList<>(Arrays.asList(new Wrapper(new ArrayList<>(Arrays
+						.asList(new Long(2), new Long(1), new Long(4), new Long(3), new Long(5), new Long(5))))))));
 	}
 
 	@Test
